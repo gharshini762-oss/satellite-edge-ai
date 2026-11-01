@@ -12,6 +12,12 @@
 - CUDA UMD Version: 13.5
 
 ## Notes
+Day1:
 - Did today: set up the project folder in VS Code, created the GitHub repo, pushed the first commit
 - Broke / confusing: misspelled GitHub username in the remote address (oss vs ocs); push blocked by email privacy (GH007), fixed with the noreply address; data.lnk was a shortcut, not a folder
 - Next: Day 2, create the virtual environment and install PyTorch for the RTX 5060
+
+Day2:
+- Did today:Activated `.venv`, installed PyTorch 2.11.0 with CUDA 12.8 support, verified GPU tensor math on the RTX 5060 Laptop GPU (8124 MB VRAM, sm_120), exported dependencies to requirements.txt, and pushed commit 6ca1e38 to GitHub.
+- Broke / confusing: none
+- Next:Day 3, NumPy + OpenCV
