@@ -12,6 +12,9 @@
 - CUDA UMD Version: 13.5
 
 ## Notes
+
+ PHASE-1
+
 Day1:
 - Did today: set up the project folder in VS Code, created the GitHub repo, pushed the first commit
 - Broke / confusing: misspelled GitHub username in the remote address (oss vs ocs); push blocked by email privacy (GH007), fixed with the noreply address; data.lnk was a shortcut, not a folder
@@ -31,3 +34,8 @@ Day 4:
 - Did today: Created 4096x4096 PyTorch tensors, moved them to the RTX 5060 GPU with .to("cuda"), added hardware warm-up loops, and benchmarked 100 matrix multiplication runs comparing CPU, unsynchronized GPU, and synchronized GPU speeds.
 - Observed : Without torch.cuda.synchronize(), Python's time.time() reports a fake sub-millisecond execution time because it only measures how fast the CPU dispatches tasks to the GPU queue rather than when the hardware actually finishes computing.
 - Next: Day 5, build the telemetry logger to monitor GPU temperature, VRAM usage, and power draw during model execution.
+
+Day 5:
+- Did today: Built src/telemetry.py using pynvml to query live RTX 5060 hardware sensors (temperature, power draw, core clock, and VRAM usage) at 5 Hz during a continuous PyTorch matrix multiplication workload. Added torch.cuda.max_memory_allocated() reporting and plotted temperature/clock stability curves to check for throttling.
+- Observed: Peak VRAM allocation was logged successfully, and core clocks remained stable during the stress test window without thermal throttling.
+- Next: Day 6, complete the Phase 1 review.
