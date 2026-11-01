@@ -9,7 +9,9 @@
 - Free disk space:275 GB
 - Python:3.12.10 
 - Git versions:2.56.0.windows.4
+- CUDA UMD Version: 13.5
 
-Did today:
-Broke / confusing:
-Next:
+## Notes
+- Did today: set up the project folder in VS Code, created the GitHub repo, pushed the first commit
+- Broke / confusing: misspelled GitHub username in the remote address (oss vs ocs); push blocked by email privacy (GH007), fixed with the noreply address; data.lnk was a shortcut, not a folder
+- Next: Day 2, create the virtual environment and install PyTorch for the RTX 5060
