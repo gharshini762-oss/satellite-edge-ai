@@ -25,4 +25,9 @@ Day2:
 Day3:
 - Did today: Wrote src/day4_image_basics.py covering NumPy array inspection (.shape, .dtype, min/max), OpenCV BGR-to-RGB conversion, 224x224 resizing, and 12-bit (0-4095) to 8-bit (0-255) dynamic range rescaling.
 - Observed: Plotting raw OpenCV BGR arrays in Matplotlib swaps the Red and Blue channels; rescaling 12-bit data down to 8-bit introduces a small quantization rounding error (up to ~8 intensity levels out of 4095).
-- Next: Day 5, PyTorch tensors and GPU matrix multiplication timing benchmark with torch.cuda.synchronize().
+- Next: Day 4, PyTorch tensors and GPU matrix multiplication timing benchmark with torch.cuda.synchronize().
+
+Day 4:
+- Did today: Created 4096x4096 PyTorch tensors, moved them to the RTX 5060 GPU with .to("cuda"), added hardware warm-up loops, and benchmarked 100 matrix multiplication runs comparing CPU, unsynchronized GPU, and synchronized GPU speeds.
+- Observed : Without torch.cuda.synchronize(), Python's time.time() reports a fake sub-millisecond execution time because it only measures how fast the CPU dispatches tasks to the GPU queue rather than when the hardware actually finishes computing.
+- Next: Day 5, build the telemetry logger to monitor GPU temperature, VRAM usage, and power draw during model execution.
