@@ -3,7 +3,7 @@
 ## Goal (planned)
 Compare FP32, FP16, and INT8 cloud-vs-clear classifiers on Sentinel-2
 patches under satellite downlink limits.
-Planned measurements: accuracy,model size, latency, and memory; the trade-off between bandwidth saved and wrongly deleted clear tiles under a high-confidence deletion threshold; and software bit-flip fault injection.
+Planned measurements: accuracy, model size, latency, and memory; the trade-off between bandwidth saved and wrongly deleted clear tiles under a high-confidence deletion threshold; and software bit-flip fault injection.
 A laptop GPU stands in for onboard hardware, so results will be relative comparisons, not in-orbit performance.
 
 ## Status (last updated 2026-11-01)
@@ -15,7 +15,7 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 - Device: Acer Nitro ANV15-52
 - GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8 GB VRAM, driver 621.01
 - Python 3.12.10
-- PyTorch 2.11.0+cu128 , CUDA 12.8 build
+- PyTorch 2.11.0+cu128, CUDA 12.8 build
 - Test conditions: "not recorded"
 
 ## What's here so far
@@ -28,13 +28,9 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 - results/: figures and logs produced by the scripts above
 
 ## Phase 1 measurements
-- GPU timing: synchronized (recorded:22.4552 ms) ms vs. unsynchronized ( recorded:0.0000 ms) ms. GPU calls
-  return before the work finishes, so timing without synchronize()
-  undercounts.
-- Telemetry (10-second stress test): clock rose from about 300 MHz to
-  about 1750 MHz; temperature rose from about 56 C to about 78 C. The
-  temperature trace oscillates regularly, and the cause has not been
-  investigated yet.
+- GPU timing: synchronized(Measures actual GPU compute time) 22.4552 ms (median) v/s unsynchronized (Measures CPU handoff only) 0.0000 ms (median). GPU calls return before the work finishes, so timing without synchronize() undercounts.
+- Telemetry (10-second stress test): clock rose from about 300 MHz to about 1750 MHz; temperature rose from about 56 C to about 78 C. 
+The temperature trace oscillates regularly, and the cause has not been investigated yet.
 
 ## Limitations
 - Laptop GPU, not flight hardware
