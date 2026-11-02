@@ -32,7 +32,7 @@ Day3:
 
 Day 4:
 - Did today: Created 4096x4096 PyTorch tensors, moved them to the RTX 5060 GPU with .to("cuda"), added hardware warm-up loops, and benchmarked 100 matrix multiplication runs comparing CPU, unsynchronized GPU, and synchronized GPU speeds.
-- Observed : Without torch.cuda.synchronize(), Python's time.time() reports a fake sub-millisecond execution time because it only measures how fast the CPU dispatches tasks to the GPU queue rather than when the hardware actually finishes computing.
+- Observed : Without torch.cuda.synchronize(), Python's time.time() reports a sub-millisecond execution time because it only measures how fast the CPU dispatches tasks to the GPU queue rather than when the hardware actually finishes computing. 
 - Next: Day 5, build the telemetry logger to monitor GPU temperature, VRAM usage, and power draw during model execution.
 
 Day 5:
