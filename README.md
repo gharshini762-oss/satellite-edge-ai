@@ -28,7 +28,7 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 - results/: figures and logs produced by the scripts above
 
 ## Phase 1 measurements
-- GPU timing: synchronized(Measures actual GPU compute time) 28.1941 ms (median) v/s unsynchronized (Measures CPU handoff only) 0.8579 ms  (median). GPU calls return before the work finishes, so timing without synchronize() undercounts.
+- GPU timing: synchronized(Measures actual GPU compute time) v/s unsynchronized (Measures CPU handoff only). GPU calls return before the work finishes, so timing without synchronize() undercounts.
 - Telemetry : clock rose from about 300 MHz to about 1750 MHz; temperature rose from about 56 C to about 78 C. 
 The temperature trace oscillates regularly, and the cause has not been investigated yet.
 
