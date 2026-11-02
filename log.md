@@ -39,3 +39,21 @@ Day 5:
 - Did today: Built src/telemetry.py using pynvml to query live RTX 5060 hardware sensors (temperature, power draw, core clock, and VRAM usage) at 5 Hz during a continuous PyTorch matrix multiplication workload. Added torch.cuda.max_memory_allocated() reporting and plotted temperature/clock stability curves to check for throttling.
 - Observed: Peak VRAM allocation was logged successfully, and core clocks remained stable during the stress test window without thermal throttling.
 - Next: Day 6, complete the Phase 1 review.
+
+Day 6: 
+- Did today: phase 1 review.
+- Observed:
+- Next: start phase 2.
+
+
+PHASE-2
+
+Day 1: 
+- Did today: Created and verified on Copernicus Data Space Ecosystem.
+- observed: What a Band is- Instead of capturing just standard Red, Green, and Blue (RGB), Sentinel-2 captures 13 separate wavelength channels (bands) from visible light (10m resolution) to short-wave infrared (20m/60m resolution) to detect surface features and high-altitude cirrus clouds.
+L1C vs. L2A- L1C is Top-of-Atmosphere (TOA) reflectance containing raw sensor measurements including clouds and atmospheric haze, whereas L2A is Bottom-of-Atmosphere (BOA) surface reflectance after heavy ground-station atmospheric correction.
+Why use L1C: An edge-AI filter running onboard a satellite before downlink only has access to uncorrected L1C data; L2A is only generated on Earth after the bandwidth has already been spent.
+Images observed-
+T43REK(Tile ID) captured on 2026/11/02 with cloud % of 0.09% and
+T43REJ(Tile ID) captured on 2026/07/25 with cloud % of 80%.
+- Next: Day 2, Open real satellite pixels
