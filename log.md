@@ -61,3 +61,8 @@ Images observed-
 T43REK(Tile ID) captured on 2026/11/02 with cloud % of 0.09% and
 T43REJ(Tile ID) captured on 2026/07/25 with cloud % of 80%.
 - Next: Day 9, Open real satellite pixels
+
+Day 9:
+- Did today: opened Sentinel-2 L1C bands B04/B03/B02 of tile T43REK (sensed 2026-11-02, baseline N05.13) with rasterio, downsampled 4x (10,980 -> 2,745 px), stacked as RGB, converted DN to TOA reflectance with (DN - 1000) / 10000, applied a 2-98 percentile stretch for viewing.
+- Observed: 61% of the tile is no-data (swath edge). Valid raw DN range 1 to 24,933 (max reflectance 2.39 before clipping). Fraction of valid pixels <0: 0.025%; >1: 0.0004%, so clipping to [0, 1] loses almost nothing on this tile.
+- Next: Day 10, get the labeled dataset (CloudSEN12) and read its documentation.
