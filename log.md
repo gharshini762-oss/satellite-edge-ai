@@ -75,6 +75,11 @@ Zero-padded rows count: 3
 Zero-padded cols count: 3
 Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
 
+- `0`: **Clear** – Unobstructed ground visibility without cloud cover or shadows.
+- `1`: **Thick Cloud** – Opaque, dense cloud cover that completely blocks the ground underneath.
+- `2`: **Thin Cloud** – Semi-transparent cloud cover (such as thin cirrus or haze) where ground features remain partially visible through the vapor.
+- `3`: **Cloud Shadow** – The dark projected silhouette cast by a cloud onto the underlying terrain.
+
 - Broke / confusing: Local `tacoreader` import failed because Windows Security blocked `pyarrow`'s `_compute.pyd` file via an Application Control policy. Workaround: Used Google Colab to stream data and download samples.
 - Next: Day 11, define labels and cut patches.
 
