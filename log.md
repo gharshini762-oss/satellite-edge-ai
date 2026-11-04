@@ -40,15 +40,19 @@ Day 5:
 - Observed: Peak VRAM allocation was logged successfully, and core clocks remained stable during the stress test window without thermal throttling.
 - Next: Day 6, complete the Phase 1 review.
 
-Day 6: 
-- Did today: phase 1 review.
-- Observed:
-- Next: start phase 2.
+Day 6:
+- Did today: Phase 1 review.
+- Observed: plugged in, the 4096x4096 matmul took 19.30, 20.00 and 19.13 ms (synchronized median); on battery it took 28.19 ms. Unsynchronized timing read ~0 ms, below the timer's resolution, so I don't report it. Telemetry samples are unevenly spaced (about 0.12 to 0.38 s) and some sensor values repeat between samples.
+- Next: read about Sentinel-2.
 
+Day 7 :
+- Did today: read about Sentinel-2 (bands, L1C vs. L2A, tile structure). Source: [ESA docs / other].
+- Next: Day 8, make a Copernicus Data Space account.
+ 
 
 PHASE-2
 
-Day 1: 
+Day 8: 
 - Did today: Created and verified on Copernicus Data Space Ecosystem.
 - observed: What a Band is- Instead of capturing just standard Red, Green, and Blue (RGB), Sentinel-2 captures 13 separate wavelength channels (bands) from visible light (10m resolution) to short-wave infrared (20m/60m resolution) to detect surface features and high-altitude cirrus clouds.
 L1C vs. L2A- L1C is Top-of-Atmosphere (TOA) reflectance containing raw sensor measurements including clouds and atmospheric haze, whereas L2A is Bottom-of-Atmosphere (BOA) surface reflectance after heavy ground-station atmospheric correction.
@@ -56,4 +60,4 @@ Why use L1C: An edge-AI filter running onboard a satellite before downlink only 
 Images observed-
 T43REK(Tile ID) captured on 2026/11/02 with cloud % of 0.09% and
 T43REJ(Tile ID) captured on 2026/07/25 with cloud % of 80%.
-- Next: Day 2, Open real satellite pixels
+- Next: Day 9, Open real satellite pixels
