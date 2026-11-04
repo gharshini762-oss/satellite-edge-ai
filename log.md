@@ -66,3 +66,22 @@ Day 9:
 - Did today: opened Sentinel-2 L1C bands B04/B03/B02 of tile T43REK (sensed 2026-11-02, baseline N05.13) with rasterio, downsampled 4x (10,980 -> 2,745 px), stacked as RGB, converted DN to TOA reflectance with (DN - 1000) / 10000, applied a 2-98 percentile stretch for viewing.
 - Observed: 61% of the tile is no-data (swath edge). Valid raw DN range 1 to 24,933 (max reflectance 2.39 before clipping). Fraction of valid pixels <0: 0.025%; >1: 0.0004%, so clipping to [0, 1] loses almost nothing on this tile.
 - Next: Day 10, get the labeled dataset (CloudSEN12) and read its documentation.
+
+Day 10:
+- Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated a 5-sample validation grid of RGB images and masks, and analyzed image edge padding.
+- Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics. Verified scaling factor 0.0001 for reflectance conversion.
+
+Zero-padded rows count: 3
+Zero-padded cols count: 3
+Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
+
+- Broke / confusing: Local `tacoreader` import failed because Windows Security blocked `pyarrow`'s `_compute.pyd` file via an Application Control policy. Workaround: Used Google Colab to stream data and download samples.
+- Next: Day 11, define labels and cut patches.
+
+
+
+- Source: CloudSEN12+ v1.1.2, Hugging Face tacofoundation/cloudsen12, loaded with tacoreader (mode cloudsen12-l1c); data from ESA Sentinel-2, hosted by the Image & Signal Processing group. Papers to cite: Aybar et al. 2022 (Scientific Data) and 2024 (Data in Brief). Accessed 2026-11-04.
+- License: CC0 (stated on the dataset page for this version). Attribution not required; I will cite the papers anyway.
+- Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels only for evaluation.
+- Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the left and bottom.
+
