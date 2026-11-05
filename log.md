@@ -81,8 +81,9 @@ Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
 - `3`: **Cloud Shadow** – The dark projected silhouette cast by a cloud onto the underlying terrain.
 
 - Broke / confusing: Local `tacoreader` import failed because Windows Security blocked `pyarrow`'s `_compute.pyd` file via an Application Control policy. Workaround: Used Google Colab to stream data and download samples.
-- Next: Day 11, define labels and cut patches.
 
+- Dataset counts (CloudSEN12+ l1c): label_type high 10,847 / scribble 10,000 / nolabel 29,400. High-quality 509-px patches: train 8,490 / val 535 / test 975 (10,000 total). High-quality 2000-px patches: 847, not used for now. Scribble patches also appear in val/test, so I filter label_type == "high".
+- Leakage check on the official split: 0 of 10,727 roi_ids appear in more than one split.
 
 
 - Source: CloudSEN12+ v1.1.2, Hugging Face tacofoundation/cloudsen12, loaded with tacoreader (mode cloudsen12-l1c); data from ESA Sentinel-2, hosted by the Image & Signal Processing group. Papers to cite: Aybar et al. 2022 (Scientific Data) and 2024 (Data in Brief). Accessed 2026-11-04.
@@ -90,3 +91,34 @@ Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
 - Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels only for evaluation.
 - Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the left and bottom.
 
+- Next: Day 11, define labels and cut patches.
+
+Day 11:
+- Did today: Computed per-patch cloud fraction (`thick_percentage + thin_percentage`) on the 10,000 high-quality 509x509 patches, plotted `results/cloud_hist.png`, defined labeling thresholds, and ran `src/make_patches.py` in Colab to export 900 resized 224x224 RGB patches (`245` clear, `199` cloudy, `456` ambiguous_eval_only).
+- Observed: Histogram has a spike near 0% (~25% of patches) and a flat spread up to 100% . Train, val, and test splits have matching distributions (means 36.6%, 37.6%, 37.6%; medians 31%, 32%, 33%). Across all high-quality 509-px patches, 35.4% are >=50% cloudy, 20.8% are >=70% cloudy, and 7.6% are >=90% cloudy.
+
+  - Clear (`0`, keep): `cloud_pct <= 10%` (~30% of patches). Cloudy (`1`, discard): `cloud_pct >= 70%` (~20.8% of patches).
+
+  - Ambiguous mid-range (`10% < cloud_pct < 70%`) and heavy shadow (`>= 50%`) are excluded from binary training only, but kept in evaluation/test sets.
+
+  - Cropped 3-pixel zero-padding to 509x509 and resized to 224x224 (coarsening resolution ~2.3x) so full-patch cloud fraction matches the visible patch.
+
+- Next: Day 12, build leak-proof splits (verify zero scene overlap across train/val/test, check class balance per split, and save `manifest.csv`).
+
+ 
+ # Raw data of day 10/11:
+
+tortilla:data_split         test  train  validation
+label_type real_proj_shape                         
+high       2000               85    685          77
+           509               975   8490         535
+nolabel    509                 0  29400           0
+scribble   509               655   8785         560
+                      count       mean        std  min  25%   50%   75%    max
+tortilla:data_split                                                           
+test                  975.0  37.586667  32.062542  0.0  5.0  33.0  64.0  100.0
+train                8490.0  36.571967  31.903606  0.0  5.0  31.0  63.0  100.0
+validation            535.0  37.646729  31.942195  0.0  7.0  32.0  64.0  100.0
+cloudy at >= 50 : 0.354
+cloudy at >= 70 : 0.208
+cloudy at >= 90 : 0.076
