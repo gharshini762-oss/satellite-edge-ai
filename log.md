@@ -103,6 +103,15 @@ Day 11:
 
   - Cropped 3-pixel zero-padding to 509x509 and resized to 224x224 (coarsening resolution ~2.3x) so full-patch cloud fraction matches the visible patch.
 
+ - Self verification:
+Band descriptions (1-indexed): ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12')
+Bands [4, 3, 2] are: ['B04', 'B03', 'B02']
+Valid row range: 0..508 (len 509), Valid col range: 0..508 (len 509)
+Max abs difference (cropped 509x509 mask cloud % vs metadata thick+thin %): 54.0000%
+Average streaming/read time per patch: 4.47 s/patch
+
+
+
 - Next: Day 12, build leak-proof splits (verify zero scene overlap across train/val/test, check class balance per split, and save `manifest.csv`).
 
  
