@@ -63,3 +63,68 @@ for split in ['test', 'validation']:
         X = np.stack([process(i) for i in chunk['idx']])
         np.savez(path, X=X, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
         print(path, X.shape)
+
+
+# To convert Image Size from 509x509 to 224x224
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os, cv2
+import numpy as np
+import pandas as pd
+
+OUT = '/content/drive/MyDrive/cloud_export'
+export = pd.read_csv('manifest_export.csv')
+export['label'] = (export['cloud_pct'] >= 70.0).astype(int)
+export.to_csv('manifest_export.csv', index=False)
+
+SHARD = 500
+for split in ['test', 'validation']:
+    rows = export[export['split'] == split].reset_index(drop=True)
+    for k in range(0, len(rows), SHARD):
+        path = f"{OUT}/{split}_{k // SHARD:03d}.npz"
+        chunk = rows.iloc[k:k + SHARD]
+        d = np.load(path)
+        X_old = d['X']
+        if X_old.shape[-1] == 509:
+            X_new = np.empty((len(X_old), 3, 224, 224), dtype=np.int16)
+            for j in range(len(X_old)):
+                hwc = X_old[j].transpose(1, 2, 0) * 10000.0
+                hwc_224 = cv2.resize(hwc, (224, 224), interpolation=cv2.INTER_AREA)
+                X_new[j] = np.rint(hwc_224.transpose(2, 0, 1)).astype(np.int16)
+            np.savez(path, X=X_new, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
+            print(f"Converted {path} -> {X_new.shape} {X_new.dtype}, cloudy={chunk['label'].mean():.3f}")
+        else:
+            np.savez(path, X=X_old, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
+            print(f"Verified {path} -> {X_old.shape} {X_old.dtype}, cloudy={chunk['label'].mean():.3f}")
+
+import rasterio as rio
+
+# Check if 'ds' is already in memory from earlier; if not, load it cleanly
+if 'ds' not in globals():
+    import tacoreader
+    try:
+        ds = tacoreader.load("tacofoundation:cloudsen12-l1c")
+    except Exception:
+        import tacoreader.v1 as tacoreader_v1
+        ds = tacoreader_v1.load("tacofoundation:cloudsen12-l1c")
+
+RGB_IDX = [4, 3, 2]
+
+def process(i):
+    s = ds.read(int(i))
+    with rio.open(s.read(0)) as a:
+        img = a.read(RGB_IDX)[:, :509, :509].astype('float32')
+    img = cv2.resize(img.transpose(1, 2, 0), (224, 224), interpolation=cv2.INTER_AREA)
+    return np.rint(img.transpose(2, 0, 1)).astype(np.int16)
+
+train_rows = export[export['split'] == 'train'].reset_index(drop=True)
+for k in range(0, len(train_rows), SHARD):
+    path = f"{OUT}/train_{k // SHARD:03d}.npz"
+    if os.path.exists(path):
+        print(f"Already exists, skipping: {path}")
+        continue
+    chunk = train_rows.iloc[k:k + SHARD]
+    X = np.stack([process(i) for i in chunk['idx']])
+    np.savez(path, X=X, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
+    print(path, X.shape, X.dtype, "cloudy:", chunk['label'].mean().round(3))       
