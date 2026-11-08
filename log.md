@@ -141,4 +141,18 @@ Day 12 :
 - Observed & Verified:
   - **Leakage check:** Zero ROI/scene overlaps confirmed successfully.
   - **Export outputs:** Successfully streamed and saved `test_000.npz` (500 patches), `test_001.npz` (475 patches), `validation_000.npz` (500 patches), and `validation_001.npz` (35 patches).
+
+  results/manifest_all.csv 
+             count      mean
+split                      
+test          975  0.204103
+train        8490  0.207303
+validation    535  0.218692
+
+results/manifest_export.csv 
+             count      mean
+split                      
+test          975  0.204103
+train        4000  0.207250
+validation    535  0.218692
 - Next: Day 13, implement `src/dataset.py` 
