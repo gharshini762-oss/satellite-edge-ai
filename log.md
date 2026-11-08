@@ -131,3 +131,14 @@ validation            535.0  37.646729  31.942195  0.0  7.0  32.0  64.0  100.0
 cloudy at >= 50 : 0.354
 cloudy at >= 70 : 0.208
 cloudy at >= 90 : 0.076
+
+Day 12 :
+- Did today: 
+  - Built the master manifest (`manifest_all.csv`) from high-quality patches and executed leak-proof validation.
+  - Asserted zero scene overlap using `assert (man.groupby('roi_id')['split'].nunique() == 1).all()`, guaranteeing zero data leakage across splits.
+  - Set `N_TRAIN = 4000` based on pilot streaming speeds (~4.47s per patch). Exporting all 8,490 training patches would require ~10+ hours; 4,000 provides an optimal, stratified training subset while keeping execution times manageable.
+  - Generated `manifest_export.csv` and executed the sharded export loop to save test and validation arrays into Google Drive (`/content/drive/MyDrive/cloud_export`).
+- Observed & Verified:
+  - **Leakage check:** Zero ROI/scene overlaps confirmed successfully.
+  - **Export outputs:** Successfully streamed and saved `test_000.npz` (500 patches), `test_001.npz` (475 patches), `validation_000.npz` (500 patches), and `validation_001.npz` (35 patches).
+- Next: Day 13, implement `src/dataset.py` 
