@@ -1,0 +1,476 @@
+========== FILE: log.md ==========
+# Research Log
+
+## 2026-11-01 (Day 1)
+- Laptop model: Acer Nitro ANV15-52
+- GPU:NVIDIA GeForce RTX 5060 (plus intel  UHD   Graphics)
+- VRAM:8 GB 
+- driver:621.01
+- RAM:16.0GB(15.7GB usable)
+- Free disk space:275 GB
+- Python:3.12.10 
+- Git versions:2.56.0.windows.4
+- CUDA UMD Version: 13.5
+
+## Notes
+
+ PHASE-1
+
+Day1:
+- Did today: set up the project folder in VS Code, created the GitHub repo, pushed the first commit
+- Broke / confusing: misspelled GitHub username in the remote address (oss vs ocs); push blocked by email privacy (GH007), fixed with the noreply address; data.lnk was a shortcut, not a folder
+- Next: Day 2, create the virtual environment and install PyTorch for the RTX 5060
+
+Day2:
+- Did today:Activated `.venv`, installed PyTorch 2.11.0 with CUDA 12.8 support, verified GPU tensor math on the RTX 5060 Laptop GPU (8124 MB VRAM, sm_120), exported dependencies to requirements.txt, and pushed commit 6ca1e38 to GitHub.
+- Broke / confusing: none
+- Next:Day 3, NumPy + OpenCV
+
+Day3:
+- Did today: Wrote src/day4_image_basics.py covering NumPy array inspection (.shape, .dtype, min/max), OpenCV BGR-to-RGB conversion, 224x224 resizing, and 12-bit (0-4095) to 8-bit (0-255) dynamic range rescaling.
+- Observed: Plotting raw OpenCV BGR arrays in Matplotlib swaps the Red and Blue channels; rescaling 12-bit data down to 8-bit introduces a small quantization rounding error (up to ~8 intensity levels out of 4095).
+- Next: Day 4, PyTorch tensors and GPU matrix multiplication timing benchmark with torch.cuda.synchronize().
+
+Day 4:
+- Did today: Created 4096x4096 PyTorch tensors, moved them to the RTX 5060 GPU with .to("cuda"), added hardware warm-up loops, and benchmarked 100 matrix multiplication runs comparing CPU, unsynchronized GPU, and synchronized GPU speeds.
+- Observed : Without torch.cuda.synchronize(), Python's time.time() reports a sub-millisecond execution time because it only measures how fast the CPU dispatches tasks to the GPU queue rather than when the hardware actually finishes computing. 
+- Next: Day 5, build the telemetry logger to monitor GPU temperature, VRAM usage, and power draw during model execution.
+
+Day 5:
+- Did today: Built src/telemetry.py using pynvml to query live RTX 5060 hardware sensors (temperature, power draw, core clock, and VRAM usage) at 5 Hz during a continuous PyTorch matrix multiplication workload. Added torch.cuda.max_memory_allocated() reporting and plotted temperature/clock stability curves to check for throttling.
+- Observed: Peak VRAM allocation was logged successfully, and core clocks remained stable during the stress test window without thermal throttling.
+- Next: Day 6, complete the Phase 1 review.
+
+Day 6:
+- Did today: Phase 1 review.
+- Observed: plugged in, the 4096x4096 matmul took 19.30, 20.00 and 19.13 ms (synchronized median); on battery it took 28.19 ms. Unsynchronized timing read ~0 ms, below the timer's resolution, so I don't report it. Telemetry samples are unevenly spaced (about 0.12 to 0.38 s) and some sensor values repeat between samples.
+- Next: read about Sentinel-2.
+
+Day 7 :
+- Did today: read about Sentinel-2 (bands, L1C vs. L2A, tile structure). Source: [ESA docs / other].
+- Next: Day 8, make a Copernicus Data Space account.
+ 
+
+PHASE-2
+
+Day 8: 
+- Did today: Created and verified on Copernicus Data Space Ecosystem.
+- observed: What a Band is- Instead of capturing just standard Red, Green, and Blue (RGB), Sentinel-2 captures 13 separate wavelength channels (bands) from visible light (10m resolution) to short-wave infrared (20m/60m resolution) to detect surface features and high-altitude cirrus clouds.
+Dataset & Proxy Notes
+- Sentinel-2 Level-1C provides calibrated Top-of-Atmosphere (TOA) reflectance, which serves as the closest publicly available proxy to raw on-orbit satellite imagery.
+
+Why use L1C: An edge-AI filter running onboard a satellite before downlink only has access to uncorrected L1C data; L2A is only generated on Earth after the bandwidth has already been spent.
+Images observed-
+T43REK(Tile ID) captured on 2026/11/02 with cloud % of 0.09% and
+T43REJ(Tile ID) captured on 2026/07/25 with cloud % of 80%.
+- Next: Day 9, Open real satellite pixels
+
+Day 9:
+- Did today: opened Sentinel-2 L1C bands B04/B03/B02 of tile T43REK (sensed 2026-11-02, baseline N05.13) with rasterio, downsampled 4x (10,980 -> 2,745 px), stacked as RGB, converted DN to TOA reflectance with (DN - 1000) / 10000, applied a 2-98 percentile stretch for viewing.
+- Observed: 61% of the tile is no-data (swath edge). Valid raw DN range 1 to 24,933 (max reflectance 2.39 before clipping). Fraction of valid pixels <0: 0.025%; >1: 0.0004%, so clipping to [0, 1] loses almost nothing on this tile.
+- Next: Day 10, get the labeled dataset (CloudSEN12) and read its documentation.
+
+Day 10:
+- Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated 5-patch sample preview grid (first 5 rows, test-split ROI_00001) and analyzed image edge padding and value scaling.
+- Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics.
+
+Zero-padded rows count: 3
+Zero-padded cols count: 3
+Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
+
+- `0`: **Clear** – Unobstructed ground visibility without cloud cover or shadows.
+- `1`: **Thick Cloud** – Opaque, dense cloud cover that completely blocks the ground underneath.
+- `2`: **Thin Cloud** – Semi-transparent cloud cover (such as thin cirrus or haze) where ground features remain partially visible through the vapor.
+- `3`: **Cloud Shadow** – The dark projected silhouette cast by a cloud onto the underlying terrain.
+
+- Broke / confusing: Local `tacoreader` import failed because Windows Security blocked `pyarrow`'s `_compute.pyd` file via an Application Control policy. Workaround: Used Google Colab to stream data and download samples.
+
+- Dataset counts (CloudSEN12+ l1c): label_type high 10,847 / scribble 10,000 / nolabel 29,400. High-quality 509-px patches: train 8,490 / val 535 / test 975 (10,000 total). High-quality 2000-px patches: 847, not used for now. Scribble patches also appear in val/test, so I filter label_type == "high".
+- Leakage check on the official split: 0 of 10,727 roi_ids appear in more than one split.
+
+
+- Source: CloudSEN12+ v1.1.2, Hugging Face tacofoundation/cloudsen12, loaded with tacoreader (mode cloudsen12-l1c); data from ESA Sentinel-2, hosted by the Image & Signal Processing group. Papers to cite: Aybar et al. 2022 (Scientific Data) and 2024 (Data in Brief). Accessed 2026-11-04.
+- License: CC0 (stated on the dataset page for this version). Attribution not required; I will cite the papers anyway.
+- Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels only for evaluation.
+- Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the bottom and right (indices 509..511.)
+
+- Next: Day 11, define labels and cut patches.
+
+Day 11:
+- Did today: Computed per-patch cloud fraction (`thick_percentage + thin_percentage`) on the 10,000 high-quality 509x509 patches, plotted `results/cloud_hist.png`, defined labeling thresholds, and ran `src/make_patches.py` in Colab to export 900 resized 224x224 RGB patches (`245` clear, `199` cloudy, `456` ambiguous_eval_only).
+- Observed: Histogram has a spike near 0% (~25% of patches) and a flat spread up to 100% . Train, val, and test splits have matching distributions (means 36.6%, 37.6%, 37.6%; medians 31%, 32%, 33%). Across all high-quality 509-px patches, 35.4% are >=50% cloudy, 20.8% are >=70% cloudy, and 7.6% are >=90% cloudy.
+
+  - Clear (`0`, keep): `cloud_pct <= 10%` (~30% of patches). Cloudy (`1`, discard): `cloud_pct >= 70%` (~20.8% of patches).
+
+  - Ambiguous mid-range (`10% < cloud_pct < 70%`) and heavy shadow (`>= 50%`) are excluded from binary training only, but kept in evaluation/test sets.
+
+  - Cropped 3-pixel zero-padding to 509x509 and resized to 224x224 (coarsening resolution ~2.3x) so full-patch cloud fraction matches the visible patch.
+
+ - Self verification:
+Band descriptions (1-indexed): ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12')
+Bands [4, 3, 2] are: ['B04', 'B03', 'B02']
+Valid row range: 0..508 (len 509), Valid col range: 0..508 (len 509)
+Max abs difference (cropped 509x509 mask cloud % vs metadata thick+thin %): 54.0000%
+Average streaming/read time per patch: 4.47 s/patch
+
+
+
+- Next: Day 12, build leak-proof splits (verify zero scene overlap across train/val/test, check class balance per split, and save `manifest.csv`).
+
+ 
+ Raw output from Day 10/11:
+
+tortilla:data_split         test  train  validation
+label_type real_proj_shape                         
+high       2000               85    685          77
+           509               975   8490         535
+nolabel    509                 0  29400           0
+scribble   509               655   8785         560
+                      count       mean        std  min  25%   50%   75%    max
+tortilla:data_split                                                           
+test                  975.0  37.586667  32.062542  0.0  5.0  33.0  64.0  100.0
+train                8490.0  36.571967  31.903606  0.0  5.0  31.0  63.0  100.0
+validation            535.0  37.646729  31.942195  0.0  7.0  32.0  64.0  100.0
+cloudy at >= 50 : 0.354
+cloudy at >= 70 : 0.208
+cloudy at >= 90 : 0.076
+
+Day 12 :
+- Did today: 
+  - Built the master manifest (`manifest_all.csv`) from high-quality patches and executed leak-proof validation.
+  - Asserted zero scene overlap using `assert (man.groupby('roi_id')['split'].nunique() == 1).all()`,confirming no roi_id appears in two splits.
+  - Set `N_TRAIN = 4000` based on pilot streaming speeds (~4.47s per patch). Exporting all 8,490 training patches would require ~10+ hours; 4,000 provides an optimal, stratified training subset while keeping execution times manageable.
+  - Generated `manifest_export.csv` and executed the sharded export loop to save test and validation arrays into Google Drive (`/content/drive/MyDrive/cloud_export`).
+- Observed & Verified:
+  - **Leakage check:** Zero ROI/scene overlaps confirmed successfully.
+  - **Export outputs:** Successfully streamed and saved `test_000.npz` (500 patches), `test_001.npz` (475 patches), `validation_000.npz` (500 patches), and `validation_001.npz` (35 patches).
+  Measured bulk streaming speed: ~3.6 s/patch for test/val (1,510 patches in ~1.5 h) and ~2.25 s/patch for train (4,000 patches in ~2.5 h).
+- Next: Day 13, implement `src/dataset.py` 
+
+- Mistakes / Debugging Notes (Day 12 -> Day 13 transition):
+  1. Ternary vs. Binary Label Confusion: Initially coded `label` with `-1` for ambiguous mid-range clouds (`10% < cloud_pct < 70%`) which produced negative label means (`-0.293` on test, `-0.276` on train). Caught the mismatch against the Section 4 pre-registered rule
+   (`label = 1` if `cloud_pct >= 70` else `0` across all patches) and updated `manifest_all.csv`, `manifest_export.csv`, and the shard labels to strict binary `0/1` (giving the true cloudy share: `20.73%` train, `21.87%` validation, `20.41%` test).
+  2. Shard Resolution & Dtype Mismatch: The initial Day 12 `process()` function exported `test` and `validation` shards as unresized `(N, 3, 509, 509)` `float32` arrays instead of resized `(N, 3, 224, 224)` `int16` arrays (`cv2.INTER_AREA`). Instead of re-streaming 1,510 patches over HTTP (~1.5 hours), wrote an in-place conversion script in Colab to resize the existing Drive shards to `(N, 3, 224, 224)` `int16` before exporting the `train` shards.
+
+Day 13:
+- Did today:
+  - Converted the existing `test` (`test_000.npz`, `test_001.npz`) and `validation` (`validation_000.npz`, `validation_001.npz`) shards on Google Drive from `(N, 3, 509, 509)` `float32` to `(N, 3, 224, 224)` `int16` (`cv2.INTER_AREA`) in-place, and updated all shard and manifest labels to strict binary (`label = 1` if `cloud_pct >= 70.0` else `0`).
+  - Finished streaming and exporting all 8 stratified training shards (`train_000.npz` through `train_007.npz`, `N_TRAIN = 4000`) in Colab (~2h 30m total streaming run).
+  - Downloaded all 12 `.npz` shards to `data/processed/shards/`1,659,081,360 bytes / 150,545,484 bytes per 500-patch shard.
+  - Wrote and ran `src/merge_shards.py` to concatenate the shards into memory-mappable `.npy` arrays (`data/processed/{split}_X.npy` and `{split}_y.npy`)asserted exact length, idx equality, label equality, and mask_cloud_pct alignment (mean diff 0.24%–0.26%, max <= 2.61%) against results/manifest_export.csv, saving stats to results/norm_stats.json.
+  - Computed per-channel RGB mean and standard deviation strictly from the training split (`train_X.npy[::10]` scaled by `1/10000.0`).
+  - Implemented `CloudDS` (`torch.utils.data.Dataset`) in `src/dataset.py` with memory-mapped reading (`mmap_mode='r'`), reflectance scaling (`/ 10000.0`, clamped to `[0, 1]`), geometric-only training augmentations (random horizontal/vertical flips and 90-degree rotations, no color jitter), and train-only standardization.
+- Observed & Verified:
+  - **Final merged split counts & cloudy share (`label = 1` for `cloud_pct >= 70%`):**
+    - `train`: shape `(4000, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.207250` (matches full 8,490 train set fraction of `0.207303`)
+    - `validation`: shape `(535, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.218692`
+    - `test`: shape `(975, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.204103`
+  - **Train-only normalization stats (R, G, B):**
+    - `TRAIN_MEAN = [0.219371, 0.213987, 0.229659]`
+    - `TRAIN_STD  = [0.208468, 0.186713, 0.197026]`
+  - **Single-item `CloudDS` verification (`python src/dataset.py`):**
+    - `train`: `len=4000`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+    - `validation`: `len=535`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+    - `test`: `len=975`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+- Next: Day 14, run batch verification and loader throughput benchmarks (`src/check_loaders.py`), inspect 5x5 visual sample grids, and write `dataset_card.md` to pass the Phase 2 gate.
+
+Day 14:
+- Did today:
+  - Implemented `src/check_loaders.py` to build `train_loader`, `val_loader`, and `test_loader` (`batch_size=64`, `shuffle=True` for train only, `num_workers=0`).
+  - Checked a full training batch for shape, dtype, finite values, class mix, and post-normalization channel statistics.
+  - Plotted and saved stratified random 5x5 visual inspection grids (12 `y=1` and 13 `y=0` patches, brightened x2.5 for display) for training (`results/day14_train_grid.png`) and validation (`results/day14_val_grid.png`).
+  - Benchmarked full-epoch DataLoader throughput across all 4,000 training patches.
+  - Wrote `dataset_card.md` documenting the CloudSEN12+ v1.1.2 L1C source, CC0 license, Aybar et al. (2022, 2024) citations, selection criteria, split counts, leak check, preprocessing, normalization stats, and known dataset biases.
+- Observed & Verified (Phase 2 Gate):
+  - **Batch check (`next(iter(train_loader))`):**
+    - Shape: `(64, 3, 224, 224)` | Dtype: `torch.float32`
+    - All finite: `True`
+    - Label counts (`0=keep, 1=cloudy`): `[47, 17]` (`cloudy frac = 0.266`)
+    - Normalized batch per-channel mean: `[-0.142, -0.168, -0.179]` (near `0.0`)
+  - Normalized batch per-channel std: `[0.827, 0.804, 0.788]` (near `1.0`).
+  - **Loader throughput:** `1140.8 images/sec` (`3.51s` for `4,000` images with `mmap_mode='r'` and `num_workers=0`).
+  - **Visual grid & label quality reaction:** Initial `v1` grids exposed image-label mismatches caused by passing DataFrame index labels (`idx`) to `ds.read()`, which was resolved by re-exporting `cloud_export_v2` using 0-based row positions (`pos`). In the regenerated `v2` stratified grids (brightened x2.5 for display, zero black padding strips on any border), all 12 `y=1` (`>=70%`) tiles match their labels (showing either thick white cloud decks or widespread thin haze/cirrus such as `idx=3223` at 77% in train and `idx=52` at 82% in val), while `y=0` tiles show clear land/water at 0%, bright snow/ice at 0–5% (`idx=638` in train, `idx=107` in val), and broken clouds around 45–66% just below the `T=70%` cutoff.
+- Debugging / Windows DLL Note:
+  - Running `python src/dataset.py` initially triggered `ImportError: DLL load failed while importing _C: An Application Control policy has blocked this file` when `numpy` was imported right before `torch`, whereas `src/check_loaders.py` ran cleanly because importing `os` and `pandas` first pre-loaded the required C++ runtime DLLs. Reordered the top imports in `src/dataset.py`, after which `python src/dataset.py` passed without error.
+- Next: Day 15 (Phase 3 start), watch 3Blue1Brown Ch. 3 & 4 (gradient descent and backpropagation), implement ResNet-18 in `src/models.py`, and run the 150-step single-batch overfit test.
+
+
+
+========== FILE: README.md ==========
+# Onboard Cloud Filtering with Quantized Neural Networks (work in progress)
+
+## Goal (planned)
+Compare FP32, FP16, and INT8 cloud-vs-clear classifiers on Sentinel-2
+patches under satellite downlink limits.
+Planned measurements: accuracy, model size, latency, and memory; the trade-off between bandwidth saved and wrongly deleted clear tiles under a high-confidence deletion threshold; and software bit-flip fault injection.
+A laptop GPU stands in for onboard hardware, so results will be relative comparisons, not in-orbit performance.
+
+## Status (last updated 2026-11-01)
+- Phase 1 (environment and measurement tools): complete
+- Phase 2 (data): not started
+- No model has been trained or quantized yet.
+
+## Environment
+- Device: Acer Nitro ANV15-52
+- GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8 GB VRAM, driver 621.01
+- Python 3.12.10
+- PyTorch 2.11.0+cu128, CUDA 12.8 build
+- Test conditions: "not recorded"
+
+## What's here so far
+- src/verify_env.py: checks that PyTorch can run math on the GPU
+- src/day4_image_basics.py: images as NumPy arrays, BGR-to-RGB
+  correction, 224x224 resize, 12-bit to 8-bit rescaling error
+- src/day5_gpu_benchmark.py: synchronized v/s unsynchronized GPU 
+  timing over 100 trials
+- src/telemetry.py: logs GPU temperature, clock, VRAM.
+- results/: figures and logs produced by the scripts above
+
+## Phase 1 measurements
+- GPU timing: synchronized(Measures actual GPU compute time) v/s unsynchronized (Measures CPU handoff only). GPU calls return before the work finishes, so timing without synchronize() undercounts.
+- Telemetry : clock rose from about 200 MHz to about 1750 MHz; temperature rose from about 54 C to about 78 C. 
+The temperature trace oscillates regularly, and the cause has not been investigated yet.
+
+## Limitations
+- Laptop GPU, not flight hardware
+- Measurements so far use random data, not real imagery
+
+## Reproduce
+```
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+# install PyTorch with the command from pytorch.org (CUDA 12.8 or newer)
+pip install -r requirements.txt
+python src/verify_env.py
+```
+
+## Planned phases
+2. Data: Sentinel-2 patches with cloud labels
+3. FP32 baseline model and benchmark
+4. FP16/INT8 quantization and threshold sweep
+5. Full benchmarks and bit-flip tests
+6. Paper
+
+
+
+========== FILE: dataset_card.md ==========
+# Dataset Card: CloudSEN12+ L1C Binary Cloud-Screening Subset (`cloud_export_v2`)
+
+## 1. Source, Version, and License
+- **Dataset:** CloudSEN12+ (v1.1.2, Level-1C Top-of-Atmosphere reflectance), accessed via `tacoreader` (`tacofoundation:cloudsen12-l1c` / Hugging Face `tacofoundation/cloudsen12`).
+- **License:** CC0 1.0 Universal (Public Domain), per the dataset documentation.
+- **Citations:**
+  - Aybar, C. et al. (2022). *CloudSEN12, a global dataset for semantic understanding of cloud and cloud shadow in Sentinel-2*. Scientific Data, 9(1), 782.
+  - Aybar, C. et al. (2024). *CloudSEN12+: The largest dataset of expert-labeled pixels for cloud and cloud shadow detection in Sentinel-2*. Data in Brief.
+
+## 2. Selection Rule, Split Method & Leakage Check
+- **Selection Rule:** Filtered strictly to high-quality expert-labeled patches (`label_type == 'high'`) with native projection size $509 \times 509$ (`real_proj_shape == 509`), yielding 10,000 total patches (`results/manifest_all.csv`, excluding 847 high-quality $2000 \times 2000$ patches and all scribble/unlabeled patches).
+- **Split Method & Leakage Check:** Official `tortilla:data_split` scene-level assignment grouped by `roi_id`. Verified that no `roi_id` appears in more than one split via `assert (man.groupby('roi_id')['split'].nunique() == 1).all()`.
+- **Exported Counts & Class Balance (`results/manifest_export.csv`):**
+  - **Train:** 4,000 patches (stratified subsample across 10% cloud-cover deciles with `random_state=42` from the 8,490 official train patches; binary cloudy fraction = `0.207250`, vs. `0.207303` across all 8,490 train patches).
+  - **Validation:** 535 patches (100% of official validation split; binary cloudy fraction = `0.218692`).
+  - **Test:** 975 patches (100% of official test split; binary cloudy fraction = `0.204103`).
+
+## 3. Labeling Rule & Mask Alignment Verification
+- **Cloud Fraction:** `cloud_pct = thick_percentage + thin_percentage`.
+- **Position-Indexed Mask Verification (`cloud_export_v2`):** Each patch is read by its 0-based `tacoreader` table position (`pos`) and checked against its cropped $509 \times 509$ pixel-level semantic mask (`classes 1 + 2`). Across all 5,510 exported patches, the absolute difference between mask-derived cloud percentage and metadata `cloud_pct` is verified to be $\le 3.0\%$ (`train`: mean diff `0.24%`, max `1.92%`; `validation`: mean diff `0.24%`, max `1.33%`; `test`: mean diff `0.26%`, max `2.61%`).
+- **Binary Target (`label`):**
+  - `1` (**Cloudy / Discard candidate**): `cloud_pct >= 70.0%` ($T = 70\%$ pre-registered prior to training).
+  - `0` (**Keep-worthy tile**): `cloud_pct < 70.0%` (trained on all patches without dropping intermediate cloud bands).
+- **Cloud Shadow Handling:** `cloud_shadow_percentage` counts as ground (`0`), not cloud, and is retained in `results/manifest_export.csv` for downstream error analysis.
+- **Imbalance Policy:** No resampling or class weights applied during baseline training so predicted probabilities remain calibrated for asymmetric threshold ($\tau$) selection.
+
+## 4. Preprocessing & Normalization Statistics
+1. **Bands:** Sentinel-2 L1C RGB bands `B04` (Red), `B03` (Green), `B02` (Blue), corresponding to 1-indexed `rasterio` channels `[4, 3, 2]`.
+2. **Padding Crop:** Cropped the 3-pixel zero-padding strip along the bottom and right edges (`img[:, :509, :509]`).
+3. **Whole-Patch Resize:** Resized full $509 \times 509$ patches to $224 \times 224$ via area interpolation (`cv2.INTER_AREA`) and stored as `int16` digital numbers (`1,659,081,360` bytes / ~1.66 GB across 12 `.npz` shards). Whole-patch resizing preserves alignment with the whole-patch `cloud_pct` label.
+4. **Reflectance Scaling & Standardization:** The ESA `-1000` radiometric offset is already harmonized in CloudSEN12+ L1C patches (`min > 0`). Values are divided by `10,000.0`, clamped to `[0.0, 1.0]`, and standardized using training-split-only statistics (`results/norm_stats.json`, computed on `train_X.npy[::10]`):
+   - **Per-channel Mean (R, G, B):** `[0.219371, 0.213987, 0.229659]`
+   - **Per-channel Std (R, G, B):** `[0.208468, 0.186713, 0.197026]`
+5. **Training Augmentations:** Random horizontal flip ($p = 0.5$), random vertical flip ($p = 0.5$), and random $90^\circ$ rotations ($k \in \{0, 1, 2, 3\}$). No color jitter or brightness changes are applied.
+
+## 5. Known Biases & Limitations
+- **Curated Cloud-Cover Distribution:** CloudSEN12+ was sampled to span all cloud fractions (~25% spike near 0% and uniform spread across 10–100%), so raw discard rates on this dataset do not represent natural orbital cloud encounter frequencies without reweighting.
+- **Spectral & Spatial Scope:** Uses 3-band RGB thumbnails ($224 \times 224$) from Sentinel-2 L1C TOA reflectance (excluding SWIR/cirrus bands `B10`/`B11`), serving as a proxy for a low-cost RGB cubesat imager rather than a full 13-band multispectral payload.
+
+
+
+========== FILE: src\dataset.py ==========
+import os
+import json
+import pandas as pd 
+import torch
+import numpy as np
+
+def load_norm_stats(path="results/norm_stats.json"):
+    with open(path, "r") as f:
+        d = json.load(f)
+    return d["mean"], d["std"]
+
+class CloudDS(torch.utils.data.Dataset):
+    def __init__(self, split, mean=None, std=None, train=False, root="data/processed", stats_path="results/norm_stats.json"):
+        if mean is None or std is None:
+            mean, std = load_norm_stats(stats_path)
+        self.x = np.load(f"{root}/{split}_X.npy", mmap_mode="r")
+        self.y = np.load(f"{root}/{split}_y.npy")
+        self.mean = torch.tensor(mean, dtype=torch.float32).view(3, 1, 1)
+        self.std = torch.tensor(std, dtype=torch.float32).view(3, 1, 1)
+        self.train = train
+
+    def __len__(self):
+        return len(self.y)
+
+    def __getitem__(self, i):
+        x = torch.from_numpy(self.x[i].astype(np.float32)) / 10000.0
+        x = x.clamp(0.0, 1.0)
+        if self.train:
+            if torch.rand(1) < 0.5:
+                x = torch.flip(x, dims=[2])
+            if torch.rand(1) < 0.5:
+                x = torch.flip(x, dims=[1])
+            x = torch.rot90(x, int(torch.randint(0, 4, (1,))), dims=[1, 2])
+        return (x - self.mean) / self.std, int(self.y[i])
+
+if __name__ == "__main__":
+    mean, std = load_norm_stats()
+    for sp in ["train", "validation", "test"]:
+        ds = CloudDS(sp, mean, std, train=(sp == "train"))
+        x0, y0 = ds[0]
+        print(f"{sp:10s} | len={len(ds):4d} | item[0] shape={tuple(x0.shape)} | dtype={x0.dtype} | label={y0}")
+
+
+
+========== FILE: src\check_loaders.py ==========
+import os
+import sys
+import time
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader
+import matplotlib.pyplot as plt
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from src.dataset import CloudDS, load_norm_stats
+
+def save_stratified_grid(dataset, manifest_split_df, out_path, title, seed=42):
+    mean, std = load_norm_stats()
+    mean_t = torch.tensor(mean).view(3, 1, 1)
+    std_t = torch.tensor(std).view(3, 1, 1)
+
+    rng = np.random.default_rng(seed)
+    idx_0 = np.where(manifest_split_df["label"].to_numpy() == 0)[0]
+    idx_1 = np.where(manifest_split_df["label"].to_numpy() == 1)[0]
+    pick_0 = rng.choice(idx_0, size=13, replace=False)
+    pick_1 = rng.choice(idx_1, size=12, replace=False)
+    picks = np.concatenate([pick_1, pick_0])  # Top 12 are y=1, bottom 13 are y=0
+
+    fig, axes = plt.subplots(5, 5, figsize=(12, 12))
+    for ax, i in zip(axes.flat, picks):
+        x_norm, y = dataset[int(i)]
+        rgb = (x_norm * std_t + mean_t).clamp(0.0, 1.0).permute(1, 2, 0).numpy()
+        rgb_vis = np.clip(rgb * 2.5, 0.0, 1.0)  # 2.5x display gain for dark TOA reflectance
+        cloud_pct = manifest_split_df.iloc[int(i)]["cloud_pct"]
+        ax.imshow(rgb_vis)
+        ax.set_title(f"idx={int(i)} | y={y} ({cloud_pct:.0f}%)", fontsize=8.5)
+        ax.axis("off")
+
+    plt.suptitle(f"{title}\n(Stratified sample: 12 y=1, 13 y=0 | Display brightened x2.5)", fontsize=12)
+    plt.tight_layout()
+    plt.savefig(out_path, dpi=150)
+    plt.close()
+    print(f"Saved stratified visual grid: {out_path}")
+
+if __name__ == "__main__":
+    torch.manual_seed(0)
+    mean, std = load_norm_stats()
+    train_ds = CloudDS("train", mean, std, train=True)
+    val_ds   = CloudDS("validation", mean, std, train=False)
+    test_ds  = CloudDS("test", mean, std, train=False)
+
+    train_loader = DataLoader(train_ds, batch_size=64, shuffle=True, num_workers=0)
+    val_loader   = DataLoader(val_ds, batch_size=64, shuffle=False, num_workers=0)
+    test_loader  = DataLoader(test_ds, batch_size=64, shuffle=False, num_workers=0)
+
+    x, y = next(iter(train_loader))
+    print("=== Batch Check ===")
+    print("Shape:", tuple(x.shape), "| Dtype:", x.dtype)
+    print("All finite:", bool(torch.isfinite(x).all()))
+    print("Label counts (0=keep, 1=cloudy):", torch.bincount(y).tolist(), f"(cloudy frac={y.float().mean():.3f})")
+    print("Batch per-channel mean:", x.mean(dim=(0, 2, 3)).round(decimals=3).tolist())
+    print("Batch per-channel std :", x.std(dim=(0, 2, 3)).round(decimals=3).tolist())
+
+    manifest = pd.read_csv("results/manifest_export.csv")
+    train_man = manifest[manifest["split"] == "train"].reset_index(drop=True)
+    val_man   = manifest[manifest["split"] == "validation"].reset_index(drop=True)
+
+    train_ds_eval = CloudDS("train", mean, std, train=False)
+    save_stratified_grid(train_ds_eval, train_man, "results/day14_train_grid.png", "Train 5x5 Stratified Grid")
+    save_stratified_grid(val_ds, val_man, "results/day14_val_grid.png", "Validation 5x5 Stratified Grid")
+
+    t0 = time.perf_counter()
+    n_imgs = sum(len(bx) for bx, _ in train_loader)
+    elapsed = time.perf_counter() - t0
+    print(f"=== Loader Speed: {n_imgs / elapsed:.1f} images/sec ({elapsed:.2f}s for {n_imgs} images) ===")
+
+
+
+========== FILE: src\merge_shards.py ==========
+# src/merge_shards.py
+import glob
+import json
+import numpy as np
+import pandas as pd
+
+export_df = pd.read_csv("results/manifest_export.csv")
+updated_splits = []
+
+for split in ["test", "validation", "train"]:
+    files = sorted(glob.glob(f"data/processed/shards/{split}_*.npz"))
+    assert len(files) > 0, f"No shards found for {split} in data/processed/shards/"
+    parts = [np.load(f) for f in files]
+
+    X = np.concatenate([p["X"] for p in parts], axis=0)
+    y = np.concatenate([p["y"] for p in parts], axis=0).astype(np.int64)
+    idx = np.concatenate([p["idx"] for p in parts], axis=0)
+
+    sub_df = export_df[export_df["split"] == split].reset_index(drop=True).copy()
+    assert len(X) == len(sub_df), f"Length mismatch in {split}: {len(X)} vs {len(sub_df)}"
+    assert X.shape[1:] == (3, 224, 224) and X.dtype == np.int16, f"Unexpected shape/dtype: {X.shape}, {X.dtype}"
+    assert np.array_equal(idx, sub_df["idx"].to_numpy()), f"idx alignment mismatch in {split}!"
+    assert np.array_equal(y, sub_df["label"].to_numpy()), f"label alignment mismatch in {split}!"
+
+    # Verify v2 position and mask_cloud_pct fields
+    if "pos" in parts[0] and "mask_cloud_pct" in parts[0]:
+        pos = np.concatenate([p["pos"] for p in parts], axis=0)
+        mask_pct = np.concatenate([p["mask_cloud_pct"] for p in parts], axis=0)
+        sub_df["pos"] = pos
+        sub_df["mask_cloud_pct"] = np.round(mask_pct, 4)
+        abs_diff = np.abs(mask_pct - sub_df["cloud_pct"].to_numpy())
+        assert abs_diff.max() <= 3.0, f"Mask diff > 3% in {split}: {abs_diff.max():.2f}%"
+        diff_str = f"mean_diff={abs_diff.mean():.2f}%, max_diff={abs_diff.max():.2f}%"
+    else:
+        diff_str = "WARNING: v1 shard detected (no mask_cloud_pct field)"
+
+    updated_splits.append(sub_df)
+    np.save(f"data/processed/{split}_X.npy", X)
+    np.save(f"data/processed/{split}_y.npy", y)
+    print(f"{split:10s} | shape: {str(X.shape):18s} | cloudy: {y.mean():.6f} | {diff_str}")
+
+# Save manifest_export.csv with verified pos and mask_cloud_pct columns
+pd.concat(updated_splits, ignore_index=True).to_csv("results/manifest_export.csv", index=False)
+
+# Compute per-channel mean and std from v2 training data ONLY and save to results/norm_stats.json
+X_tr = np.load("data/processed/train_X.npy", mmap_mode="r")
+s = np.clip(np.asarray(X_tr[::10], dtype=np.float32) / 10000.0, 0.0, 1.0)
+mean = s.mean(axis=(0, 2, 3)).round(6).tolist()
+std = s.std(axis=(0, 2, 3)).round(6).tolist()
+
+stats = {"mean": mean, "std": std}
+with open("results/norm_stats.json", "w") as f:
+    json.dump(stats, f, indent=2)
+
+print("\nSaved v2 results/norm_stats.json:", stats)
+
+
+

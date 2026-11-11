@@ -55,7 +55,9 @@ PHASE-2
 Day 8: 
 - Did today: Created and verified on Copernicus Data Space Ecosystem.
 - observed: What a Band is- Instead of capturing just standard Red, Green, and Blue (RGB), Sentinel-2 captures 13 separate wavelength channels (bands) from visible light (10m resolution) to short-wave infrared (20m/60m resolution) to detect surface features and high-altitude cirrus clouds.
-L1C vs. L2A- L1C is Top-of-Atmosphere (TOA) reflectance containing raw sensor measurements including clouds and atmospheric haze, whereas L2A is Bottom-of-Atmosphere (BOA) surface reflectance after heavy ground-station atmospheric correction.
+Dataset & Proxy Notes
+- Sentinel-2 Level-1C provides calibrated Top-of-Atmosphere (TOA) reflectance, which serves as the closest publicly available proxy to raw on-orbit satellite imagery.
+
 Why use L1C: An edge-AI filter running onboard a satellite before downlink only has access to uncorrected L1C data; L2A is only generated on Earth after the bandwidth has already been spent.
 Images observed-
 T43REK(Tile ID) captured on 2026/11/02 with cloud % of 0.09% and
@@ -68,8 +70,8 @@ Day 9:
 - Next: Day 10, get the labeled dataset (CloudSEN12) and read its documentation.
 
 Day 10:
-- Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated a 5-sample validation grid of RGB images and masks, and analyzed image edge padding.
-- Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics. Verified scaling factor 0.0001 for reflectance conversion.
+- Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated 5-patch sample preview grid (first 5 rows, test-split ROI_00001) and analyzed image edge padding and value scaling.
+- Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics.
 
 Zero-padded rows count: 3
 Zero-padded cols count: 3
@@ -89,7 +91,7 @@ Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
 - Source: CloudSEN12+ v1.1.2, Hugging Face tacofoundation/cloudsen12, loaded with tacoreader (mode cloudsen12-l1c); data from ESA Sentinel-2, hosted by the Image & Signal Processing group. Papers to cite: Aybar et al. 2022 (Scientific Data) and 2024 (Data in Brief). Accessed 2026-11-04.
 - License: CC0 (stated on the dataset page for this version). Attribution not required; I will cite the papers anyway.
 - Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels only for evaluation.
-- Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the left and bottom.
+- Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the bottom and right (indices 509..511.)
 
 - Next: Day 11, define labels and cut patches.
 
@@ -115,7 +117,7 @@ Average streaming/read time per patch: 4.47 s/patch
 - Next: Day 12, build leak-proof splits (verify zero scene overlap across train/val/test, check class balance per split, and save `manifest.csv`).
 
  
- # Raw data of day 10/11:
+ Raw output from Day 10/11:
 
 tortilla:data_split         test  train  validation
 label_type real_proj_shape                         
@@ -135,29 +137,58 @@ cloudy at >= 90 : 0.076
 Day 12 :
 - Did today: 
   - Built the master manifest (`manifest_all.csv`) from high-quality patches and executed leak-proof validation.
-  - Asserted zero scene overlap using `assert (man.groupby('roi_id')['split'].nunique() == 1).all()`, guaranteeing zero data leakage across splits.
+  - Asserted zero scene overlap using `assert (man.groupby('roi_id')['split'].nunique() == 1).all()`,confirming no roi_id appears in two splits.
   - Set `N_TRAIN = 4000` based on pilot streaming speeds (~4.47s per patch). Exporting all 8,490 training patches would require ~10+ hours; 4,000 provides an optimal, stratified training subset while keeping execution times manageable.
   - Generated `manifest_export.csv` and executed the sharded export loop to save test and validation arrays into Google Drive (`/content/drive/MyDrive/cloud_export`).
 - Observed & Verified:
   - **Leakage check:** Zero ROI/scene overlaps confirmed successfully.
   - **Export outputs:** Successfully streamed and saved `test_000.npz` (500 patches), `test_001.npz` (475 patches), `validation_000.npz` (500 patches), and `validation_001.npz` (35 patches).
-
-  results/manifest_all.csv 
-             count      mean
-split                      
-test          975  0.204103
-train        8490  0.207303
-validation    535  0.218692
-
-results/manifest_export.csv 
-             count      mean
-split                      
-test          975  0.204103
-train        4000  0.207250
-validation    535  0.218692
+  Measured bulk streaming speed: ~3.6 s/patch for test/val (1,510 patches in ~1.5 h) and ~2.25 s/patch for train (4,000 patches in ~2.5 h).
 - Next: Day 13, implement `src/dataset.py` 
 
 - Mistakes / Debugging Notes (Day 12 -> Day 13 transition):
   1. Ternary vs. Binary Label Confusion: Initially coded `label` with `-1` for ambiguous mid-range clouds (`10% < cloud_pct < 70%`) which produced negative label means (`-0.293` on test, `-0.276` on train). Caught the mismatch against the Section 4 pre-registered rule
    (`label = 1` if `cloud_pct >= 70` else `0` across all patches) and updated `manifest_all.csv`, `manifest_export.csv`, and the shard labels to strict binary `0/1` (giving the true cloudy share: `20.73%` train, `21.87%` validation, `20.41%` test).
   2. Shard Resolution & Dtype Mismatch: The initial Day 12 `process()` function exported `test` and `validation` shards as unresized `(N, 3, 509, 509)` `float32` arrays instead of resized `(N, 3, 224, 224)` `int16` arrays (`cv2.INTER_AREA`). Instead of re-streaming 1,510 patches over HTTP (~1.5 hours), wrote an in-place conversion script in Colab to resize the existing Drive shards to `(N, 3, 224, 224)` `int16` before exporting the `train` shards.
+
+Day 13:
+- Did today:
+  - Converted the existing `test` (`test_000.npz`, `test_001.npz`) and `validation` (`validation_000.npz`, `validation_001.npz`) shards on Google Drive from `(N, 3, 509, 509)` `float32` to `(N, 3, 224, 224)` `int16` (`cv2.INTER_AREA`) in-place, and updated all shard and manifest labels to strict binary (`label = 1` if `cloud_pct >= 70.0` else `0`).
+  - Finished streaming and exporting all 8 stratified training shards (`train_000.npz` through `train_007.npz`, `N_TRAIN = 4000`) in Colab (~2h 30m total streaming run).
+  - Downloaded all 12 `.npz` shards to `data/processed/shards/`1,659,081,360 bytes / 150,545,484 bytes per 500-patch shard.
+  - Wrote and ran `src/merge_shards.py` to concatenate the shards into memory-mappable `.npy` arrays (`data/processed/{split}_X.npy` and `{split}_y.npy`)asserted exact length, idx equality, label equality, and mask_cloud_pct alignment (mean diff 0.24%–0.26%, max <= 2.61%) against results/manifest_export.csv, saving stats to results/norm_stats.json.
+  - Computed per-channel RGB mean and standard deviation strictly from the training split (`train_X.npy[::10]` scaled by `1/10000.0`).
+  - Implemented `CloudDS` (`torch.utils.data.Dataset`) in `src/dataset.py` with memory-mapped reading (`mmap_mode='r'`), reflectance scaling (`/ 10000.0`, clamped to `[0, 1]`), geometric-only training augmentations (random horizontal/vertical flips and 90-degree rotations, no color jitter), and train-only standardization.
+- Observed & Verified:
+  - **Final merged split counts & cloudy share (`label = 1` for `cloud_pct >= 70%`):**
+    - `train`: shape `(4000, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.207250` (matches full 8,490 train set fraction of `0.207303`)
+    - `validation`: shape `(535, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.218692`
+    - `test`: shape `(975, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.204103`
+  - **Train-only normalization stats (R, G, B):**
+    - `TRAIN_MEAN = [0.219371, 0.213987, 0.229659]`
+    - `TRAIN_STD  = [0.208468, 0.186713, 0.197026]`
+  - **Single-item `CloudDS` verification (`python src/dataset.py`):**
+    - `train`: `len=4000`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+    - `validation`: `len=535`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+    - `test`: `len=975`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
+- Next: Day 14, run batch verification and loader throughput benchmarks (`src/check_loaders.py`), inspect 5x5 visual sample grids, and write `dataset_card.md` to pass the Phase 2 gate.
+
+Day 14:
+- Did today:
+  - Implemented `src/check_loaders.py` to build `train_loader`, `val_loader`, and `test_loader` (`batch_size=64`, `shuffle=True` for train only, `num_workers=0`).
+  - Checked a full training batch for shape, dtype, finite values, class mix, and post-normalization channel statistics.
+  - Plotted and saved stratified random 5x5 visual inspection grids (12 `y=1` and 13 `y=0` patches, brightened x2.5 for display) for training (`results/day14_train_grid.png`) and validation (`results/day14_val_grid.png`).
+  - Benchmarked full-epoch DataLoader throughput across all 4,000 training patches.
+  - Wrote `dataset_card.md` documenting the CloudSEN12+ v1.1.2 L1C source, CC0 license, Aybar et al. (2022, 2024) citations, selection criteria, split counts, leak check, preprocessing, normalization stats, and known dataset biases.
+- Observed & Verified (Phase 2 Gate):
+  - **Batch check (`next(iter(train_loader))`):**
+    - Shape: `(64, 3, 224, 224)` | Dtype: `torch.float32`
+    - All finite: `True`
+    - Label counts (`0=keep, 1=cloudy`): `[47, 17]` (`cloudy frac = 0.266`)
+    - Normalized batch per-channel mean: `[-0.142, -0.168, -0.179]` (near `0.0`)
+  - Normalized batch per-channel std: `[0.827, 0.804, 0.788]` (near `1.0`).
+  - **Loader throughput:** `1140.8 images/sec` (`3.51s` for `4,000` images with `mmap_mode='r'` and `num_workers=0`).
+  - **Visual grid & label quality reaction:** Initial `v1` grids exposed image-label mismatches caused by passing DataFrame index labels (`idx`) to `ds.read()`, which was resolved by re-exporting `cloud_export_v2` using 0-based row positions (`pos`). In the regenerated `v2` stratified grids (brightened x2.5 for display, zero black padding strips on any border), all 12 `y=1` (`>=70%`) tiles match their labels (showing either thick white cloud decks or widespread thin haze/cirrus such as `idx=3223` at 77% in train and `idx=52` at 82% in val), while `y=0` tiles show clear land/water at 0%, bright snow/ice at 0–5% (`idx=638` in train, `idx=107` in val), and broken clouds around 45–66% just below the `T=70%` cutoff.
+- Debugging / Windows DLL Note:
+  - Running `python src/dataset.py` initially triggered `ImportError: DLL load failed while importing _C: An Application Control policy has blocked this file` when `numpy` was imported right before `torch`, whereas `src/check_loaders.py` ran cleanly because importing `os` and `pandas` first pre-loaded the required C++ runtime DLLs. Reordered the top imports in `src/dataset.py`, after which `python src/dataset.py` passed without error.
+- Next: Day 15 (Phase 3 start), watch 3Blue1Brown Ch. 3 & 4 (gradient descent and backpropagation), implement ResNet-18 in `src/models.py`, and run the 150-step single-batch overfit test.
