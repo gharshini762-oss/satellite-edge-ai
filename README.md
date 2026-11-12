@@ -17,7 +17,7 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 - GPU: NVIDIA GeForce RTX 5060 Laptop GPU, 8 GB VRAM, driver 621.01
 - Python 3.12.10
 - PyTorch 2.11.0+cu128, CUDA 12.8 build
-- Test conditions: "not recorded"
+- Test conditions: plugged in, with the NitroSense mode not recorded.
 
 ## Data
 - Source: CloudSEN12+ v1.1.2, L1C, CC0 (Aybar et al. 2022, Scientific Data,
@@ -40,23 +40,23 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
   (temperature, power, clock, VRAM)
 - src/merge_shards.py: merges Colab shards, asserts alignment, writes norm stats
 - src/dataset.py, check_loaders.py: dataset class, batch checks, sample grids
-- [Colab export script: notebooks/...]
+- notebooks/colab/: Colab data streaming and v2 exporter scripts.
 - results/: figures, manifests, and logs.
 
 ## Phase 1 measurements
-- GPU timing: synchronized(Measures actual GPU compute time) v/s unsynchronized (Measures CPU handoff only). GPU calls return before the work finishes, so timing without synchronize() undercounts.
+- GPU timing: synchronized(Measures actual GPU compute time) v/s unsynchronized (Measures CPU handoff only). GPU calls return before the work finishes, so timing without synchronize() undercounts. 19.3, 20.0, and 19.1 ms plugged in, and 28.2 ms on battery.
 
 - Telemetry : clock rose from about 200 MHz to about 1750 MHz; temperature rose from about 54 C to about 78 C. 
 The temperature trace oscillates regularly, and the cause has not been investigated yet.
 
 ## Phase 2 pipeline & observations          
-- Idexing mechanism: Discovered that tacoreader expects 0-based row positions (pos) rather than pandas index labels (idx). Passing labels initially caused a silent image-label mismatch, which was identified through control audits and resolved by enforcing position-based reads with automated semantic mask validation.
+- Indexing mechanism: Discovered that tacoreader expects 0-based row positions (pos) rather than pandas index labels (idx). Passing labels initially caused a silent image-label mismatch, which was identified through control audits and resolved by enforcing position-based reads with automated semantic mask validation.
 
-- Split integrity: Confirmed strict separation across region-of-interest identifiers (roi_id), ensuring no overlapping locations between training, validation, and test subsets.
+- Split integrity: Confirmed strict separation across region-of-interest identifiers (roi_id), (checking that no roi_id is shared between splits) between training, validation, and test subsets.
 
 - Normalization approach: Channel means and standard deviations were computed exclusively from the training split to avoid introducing evaluation bias into validation or test sets.
 
-- Memory mapping: Utilizing memory-mapped array access (mmap_mode='r') significantly reduced memory overhead and allowed high data throughput during batch iteration.
+- Memory mapping: Utilizing memory-mapped array access (mmap_mode='r') avoids loading the full dataset into RAM at once and allowed high data throughput during batch iteration.
 
 ## Known issues
 - Windows Application Control blocks pyarrow here, so tacoreader runs only in
@@ -66,16 +66,20 @@ The temperature trace oscillates regularly, and the cause has not been investiga
 
 
 ## Limitations
-- Laptop GPU, not flight hardware
-- Measurements so far use random data, not real imagery
+- Phase 1 timing used random tensors, and there are no model results yet.
+- Laptop GPU, not flight hardware.
+- Dataset limitations: covers all cloud amounts so discard rates aren't real-world, uses 3 of 13 bands, 4,000 of 8,490 train patches, and ROI-level split checks.
 
 ## Reproduce
-```
+```text
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 # install PyTorch with the command from pytorch.org (CUDA 12.8 or newer)
 pip install -r requirements.txt
 python src/verify_env.py
+# After running notebooks/colab scripts to export v2 shards to data/processed/shards/:
+python src/merge_shards.py
+python src/check_loaders.py
 ```
 ## Planned phases
 3. FP32 baseline model and benchmark

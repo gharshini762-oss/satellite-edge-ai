@@ -72,6 +72,7 @@ Day 9:
 Day 10:
 - Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated 5-patch sample preview grid (first 5 rows, test-split ROI_00001) and analyzed image edge padding and value scaling.
 - Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics.
+- Offset evidence: Colab `stac:time_start` agg(['min', 'max']) shows earliest date 2015-12-16 and latest date 2020-11-20 (all before the Jan 2022 ESA offset baseline). Local check on clear patches: `Clear patches count: 245 | min DN: 1 | p1 DN: 104 | p50 DN: 1324 | max DN: 12055`. 0% of valid pixels are below 0, confirming the -1000 offset does not apply to this data.
 
 Zero-padded rows count: 3
 Zero-padded cols count: 3
@@ -101,7 +102,7 @@ Day 11:
 
   - Clear (`0`, keep): `cloud_pct <= 10%` (~30% of patches). Cloudy (`1`, discard): `cloud_pct >= 70%` (~20.8% of patches).
 
-  - Ambiguous mid-range (`10% < cloud_pct < 70%`) and heavy shadow (`>= 50%`) are excluded from binary training only, but kept in evaluation/test sets.
+  - Ambiguous mid-range (`10% < cloud_pct < 70%`) and heavy shadow (`>= 50%`) were initially excluded from binary training.[SUPERSEDED: switched to training on all patches (Section 4) because the filter must score every patch in deployment. The old rule is superseded.]
 
   - Cropped 3-pixel zero-padding to 509x509 and resized to 224x224 (coarsening resolution ~2.3x) so full-patch cloud fraction matches the visible patch.
 
@@ -109,7 +110,7 @@ Day 11:
 Band descriptions (1-indexed): ('B01', 'B02', 'B03', 'B04', 'B05', 'B06', 'B07', 'B08', 'B8A', 'B09', 'B10', 'B11', 'B12')
 Bands [4, 3, 2] are: ['B04', 'B03', 'B02']
 Valid row range: 0..508 (len 509), Valid col range: 0..508 (len 509)
-Max abs difference (cropped 509x509 mask cloud % vs metadata thick+thin %): 54.0000%
+Max abs difference (cropped 509x509 mask cloud % vs metadata thick+thin %): 54.0000%.
 Average streaming/read time per patch: 4.47 s/patch
 
 
@@ -155,18 +156,20 @@ Day 13:
 - Did today:
   - Converted the existing `test` (`test_000.npz`, `test_001.npz`) and `validation` (`validation_000.npz`, `validation_001.npz`) shards on Google Drive from `(N, 3, 509, 509)` `float32` to `(N, 3, 224, 224)` `int16` (`cv2.INTER_AREA`) in-place, and updated all shard and manifest labels to strict binary (`label = 1` if `cloud_pct >= 70.0` else `0`).
   - Finished streaming and exporting all 8 stratified training shards (`train_000.npz` through `train_007.npz`, `N_TRAIN = 4000`) in Colab (~2h 30m total streaming run).
-  - Downloaded all 12 `.npz` shards to `data/processed/shards/`1,659,081,360 bytes / 150,545,484 bytes per 500-patch shard.
-  - Wrote and ran `src/merge_shards.py` to concatenate the shards into memory-mappable `.npy` arrays (`data/processed/{split}_X.npy` and `{split}_y.npy`)asserted exact length, idx equality, label equality, and mask_cloud_pct alignment (mean diff 0.24%–0.26%, max <= 2.61%) against results/manifest_export.csv, saving stats to results/norm_stats.json.
-  - Computed per-channel RGB mean and standard deviation strictly from the training split (`train_X.npy[::10]` scaled by `1/10000.0`).
-  - Implemented `CloudDS` (`torch.utils.data.Dataset`) in `src/dataset.py` with memory-mapped reading (`mmap_mode='r'`), reflectance scaling (`/ 10000.0`, clamped to `[0, 1]`), geometric-only training augmentations (random horizontal/vertical flips and 90-degree rotations, no color jitter), and train-only standardization.
-- Observed & Verified:
-  - **Final merged split counts & cloudy share (`label = 1` for `cloud_pct >= 70%`):**
-    - `train`: shape `(4000, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.207250` (matches full 8,490 train set fraction of `0.207303`)
-    - `validation`: shape `(535, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.218692`
-    - `test`: shape `(975, 3, 224, 224)`, dtype `int16`, cloudy fraction = `0.204103`
-  - **Train-only normalization stats (R, G, B):**
-    - `TRAIN_MEAN = [0.219371, 0.213987, 0.229659]`
-    - `TRAIN_STD  = [0.208468, 0.186713, 0.197026]`
+  - Downloaded all 12 `.npz` shards to `data/processed/shards/` (shards of 150,536,728 bytes).
+  - Wrote and ran `src/merge_shards.py` to concatenate the shards into memory-mappable `.npy` arrays.
+  - Computed per-channel RGB mean and standard deviation:
+    - `TRAIN_MEAN = [0.215731, 0.209375, 0.223319]` **[v1, superseded]**
+    - `TRAIN_STD  = [0.197625, 0.178327, 0.183987]` **[v1, superseded]**
+  - Implemented `CloudDS` (`torch.utils.data.Dataset`) in `src/dataset.py`.
+
+Re-export event (cloud_export_v2):
+- What I saw: The initial v1 grids showed mismatches (clear water labeled 81% cloud).
+- Cause: `ds.read(i)` expects a 0-based row position (`pos`), but v1 passed the pandas index label (`idx`), loading the wrong image row. This is why the Day 11 mask check was 54% off.
+- Exporter change: Wrote `cloud_export_v2` logic in Colab to read by `pos`, compute the semantic mask on the fly, and assert `abs(mask_cloud_pct - col_cloud_pct) <= 3%` before saving.
+- Time taken: ~3.5 hours for Colab to export all 12 v2 shards.
+- Where it lives: Google Drive `/content/drive/MyDrive/cloud_export_v2` (150,545,484 bytes per shard) and locally in `data/processed/shards/`. The v2 mean/std stats are now saved in `results/norm_stats.json`.
+
   - **Single-item `CloudDS` verification (`python src/dataset.py`):**
     - `train`: `len=4000`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
     - `validation`: `len=535`, `item[0] shape=(3, 224, 224)`, `dtype=torch.float32`, `label=0`
