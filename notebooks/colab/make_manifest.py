@@ -11,11 +11,12 @@ choices = [1, 0]
 hq['label'] = np.select(conditions, choices, default=-1)
 
 man = hq.rename(columns={'tortilla:data_split': 'split', 'clear_percentage': 'clear_pct',
-                          'cloud_shadow_percentage': 'shadow_pct'})
+                         'cloud_shadow_percentage': 'shadow_pct'})
 man = man[['roi_id', 'split', 'cloud_pct', 'clear_pct', 'shadow_pct', 'label']].copy()
 man['idx'] = man.index
 man.to_csv('manifest_all.csv', index=False)
 
+assert (man.groupby('roi_id')['split'].nunique() == 1).all()
 print("SUCCESS: Zero-leakage assertion passed!")
 print(man.groupby('split')['label'].agg(['count', 'mean']))
 
@@ -28,8 +29,6 @@ sub = train.groupby('bin', group_keys=False).apply(
 export = pd.concat([man[man['split'] == 'test'], man[man['split'] == 'validation'], sub.drop(columns='bin')])
 export.to_csv('manifest_export.csv', index=False)
 print(f"Export manifest saved with {len(export)} total rows (Train subset: {len(sub)}). ")
-
-# mount Google Drive and run the sharded exporter for your test.
 
 import os
 import numpy as np
@@ -53,78 +52,71 @@ def process(idx):
         rgb = src.read([4, 3, 2])[:, :509, :509].astype(np.float32) * 0.0001
     return rgb
 
-for split in ['test', 'validation']:
-    rows = export[export['split'] == split].reset_index(drop=True)
-    for k in range(0, len(rows), SHARD):
-        path = f"{OUT}/{split}_{k // SHARD:03d}.npz"
-        if os.path.exists(path): 
-            continue 
-        chunk = rows.iloc[k:k + SHARD]
-        X = np.stack([process(i) for i in chunk['idx']])
-        np.savez(path, X=X, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
-        print(path, X.shape)
+import cv2
 
+OUT_V2 = '/content/drive/MyDrive/cloud_export_v2'
+os.makedirs(OUT_V2, exist_ok=True)
 
-# To convert Image Size from 509x509 to 224x224
-from google.colab import drive
-drive.mount('/content/drive')
+pos_of = {lab: p for p, lab in enumerate(ds.index)} 
 
-import os, cv2
-import numpy as np
-import pandas as pd
+hq_v2 = ds[(ds['label_type'] == 'high') & (ds['real_proj_shape'] == 509)].copy()
+hq_v2['cloud_pct'] = hq_v2['thick_percentage'] + hq_v2['thin_percentage']
+hq_v2['label'] = (hq_v2['cloud_pct'] >= 70.0).astype(int)
+hq_v2['idx'] = hq_v2.index
+hq_v2['pos'] = [pos_of[lab] for lab in hq_v2.index]
 
-OUT = '/content/drive/MyDrive/cloud_export'
-export = pd.read_csv('manifest_export.csv')
-export['label'] = (export['cloud_pct'] >= 70.0).astype(int)
-export.to_csv('manifest_export.csv', index=False)
+man_v2 = hq_v2.rename(columns={
+    'tortilla:data_split': 'split',
+    'clear_percentage': 'clear_pct',
+    'cloud_shadow_percentage': 'shadow_pct'
+})[['roi_id', 'split', 'cloud_pct', 'clear_pct', 'shadow_pct', 'label', 'idx', 'pos']].copy()
 
-SHARD = 500
-for split in ['test', 'validation']:
-    rows = export[export['split'] == split].reset_index(drop=True)
-    for k in range(0, len(rows), SHARD):
-        path = f"{OUT}/{split}_{k // SHARD:03d}.npz"
-        chunk = rows.iloc[k:k + SHARD]
-        d = np.load(path)
-        X_old = d['X']
-        if X_old.shape[-1] == 509:
-            X_new = np.empty((len(X_old), 3, 224, 224), dtype=np.int16)
-            for j in range(len(X_old)):
-                hwc = X_old[j].transpose(1, 2, 0) * 10000.0
-                hwc_224 = cv2.resize(hwc, (224, 224), interpolation=cv2.INTER_AREA)
-                X_new[j] = np.rint(hwc_224.transpose(2, 0, 1)).astype(np.int16)
-            np.savez(path, X=X_new, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
-            print(f"Converted {path} -> {X_new.shape} {X_new.dtype}, cloudy={chunk['label'].mean():.3f}")
-        else:
-            np.savez(path, X=X_old, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
-            print(f"Verified {path} -> {X_old.shape} {X_old.dtype}, cloudy={chunk['label'].mean():.3f}")
+assert (man_v2.groupby('roi_id')['split'].nunique() == 1).all()
+man_v2.to_csv('manifest_all.csv', index=False)
 
-import rasterio as rio
-
-# Check if 'ds' is already in memory from earlier; if not, load it cleanly
-if 'ds' not in globals():
-    import tacoreader
-    try:
-        ds = tacoreader.load("tacofoundation:cloudsen12-l1c")
-    except Exception:
-        import tacoreader.v1 as tacoreader_v1
-        ds = tacoreader_v1.load("tacofoundation:cloudsen12-l1c")
+N_TRAIN = 4000
+train_v2 = man_v2[man_v2['split'] == 'train'].copy()
+train_v2['bin'] = (train_v2['cloud_pct'] // 10).clip(upper=9)
+sub_v2 = train_v2.groupby('bin', group_keys=False).apply(
+    lambda g: g.sample(frac=min(1, N_TRAIN / len(train_v2)), random_state=42)
+)
+export_v2 = pd.concat([
+    man_v2[man_v2['split'] == 'test'],
+    man_v2[man_v2['split'] == 'validation'],
+    sub_v2.drop(columns='bin')
+]).reset_index(drop=True)
+export_v2.to_csv('manifest_export.csv', index=False)
 
 RGB_IDX = [4, 3, 2]
 
-def process(i):
-    s = ds.read(int(i))
+def process_and_verify_v2(pos, expected_cloud_pct):
+    s = ds.read(int(pos))
     with rio.open(s.read(0)) as a:
         img = a.read(RGB_IDX)[:, :509, :509].astype('float32')
-    img = cv2.resize(img.transpose(1, 2, 0), (224, 224), interpolation=cv2.INTER_AREA)
-    return np.rint(img.transpose(2, 0, 1)).astype(np.int16)
+    with rio.open(s.read(1)) as b:
+        m = b.read(1)[:509, :509]
+    f = np.bincount(m.ravel(), minlength=4) / m.size * 100.0
+    mask_cloud_pct = float(f[1] + f[2])
+    diff = abs(mask_cloud_pct - float(expected_cloud_pct))
+    assert diff <= 3.0, f"Mask mismatch at pos={pos}: mask={mask_cloud_pct:.2f}% vs col={expected_cloud_pct:.2f}%"
+    
+    img_224 = cv2.resize(img.transpose(1, 2, 0), (224, 224), interpolation=cv2.INTER_AREA)
+    return np.rint(img_224.transpose(2, 0, 1)).astype(np.int16), np.float32(mask_cloud_pct)
 
-train_rows = export[export['split'] == 'train'].reset_index(drop=True)
-for k in range(0, len(train_rows), SHARD):
-    path = f"{OUT}/train_{k // SHARD:03d}.npz"
-    if os.path.exists(path):
-        print(f"Already exists, skipping: {path}")
-        continue
-    chunk = train_rows.iloc[k:k + SHARD]
-    X = np.stack([process(i) for i in chunk['idx']])
-    np.savez(path, X=X, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy())
-    print(path, X.shape, X.dtype, "cloudy:", chunk['label'].mean().round(3))       
+SHARD = 500
+for split in ['test', 'validation', 'train']:
+    rows = export_v2[export_v2['split'] == split].reset_index(drop=True)
+    for k in range(0, len(rows), SHARD):
+        path = f"{OUT_V2}/{split}_{k // SHARD:03d}.npz"
+        if os.path.exists(path): continue
+        chunk = rows.iloc[k:k + SHARD]
+        out_pairs = [process_and_verify_v2(p, c) for p, c in zip(chunk['pos'], chunk['cloud_pct'])]
+        X = np.stack([pair[0] for pair in out_pairs])
+        mask_pct = np.array([pair[1] for pair in out_pairs], dtype=np.float32)
+        np.savez(
+            path,
+            X=X, y=chunk['label'].to_numpy(),
+            idx=chunk['idx'].to_numpy(), pos=chunk['pos'].to_numpy(),
+            col_cloud_pct=chunk['cloud_pct'].to_numpy(dtype=np.float32),
+            mask_cloud_pct=mask_pct
+        )
