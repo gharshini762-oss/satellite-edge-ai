@@ -46,7 +46,7 @@ Day 6:
 - Next: read about Sentinel-2.
 
 Day 7 :
-- Did today: read about Sentinel-2 (bands, L1C vs. L2A, tile structure). Source: [ESA docs / other].
+- Did today: read about Sentinel-2 (bands, L1C vs. L2A, tile structure). Source: ESA Sentinel-2 User Handbook
 - Next: Day 8, make a Copernicus Data Space account.
  
 
@@ -72,7 +72,7 @@ Day 9:
 Day 10:
 - Did today: Loaded the CloudSEN12+ (`cloudsen12-l1c`) and generated 5-patch sample preview grid (first 5 rows, test-split ROI_00001) and analyzed image edge padding and value scaling.
 - Observed: Total rows in dataset are 50,247. The patches contain a 3-pixel zero-padding strip at the edges (expanding native 509x509 to 512x512). The label values inside this zero-padded strip evaluate entirely to `0` ("clear"), confirming that uncropped padded patches would artificially inflate clear-sky fraction metrics.
-- Offset evidence: Colab `stac:time_start` agg(['min', 'max']) shows earliest date 2015-12-16 and latest date 2020-11-20 (all before the Jan 2022 ESA offset baseline). Local check on clear patches: `Clear patches count: 245 | min DN: 1 | p1 DN: 104 | p50 DN: 1324 | max DN: 12055`. 0% of valid pixels are below 0, confirming the -1000 offset does not apply to this data.
+- Offset evidence: Colab `stac:time_start` agg(['min', 'max']) shows earliest date 2015-12-16 and latest date 2020-11-20. Day 9 used a raw baseline N05.13 product which requires subtracting 1000, but CloudSEN12 predates the Jan 2022 ESA offset baseline. Local check on train_X.npy: min 178 | p1 351.0 | p50 1385.0 | max 18727.
 
 Zero-padded rows count: 3
 Zero-padded cols count: 3
@@ -91,13 +91,13 @@ Label values in zero-padded strip: (array([0], dtype=uint8), array([512]))
 
 - Source: CloudSEN12+ v1.1.2, Hugging Face tacofoundation/cloudsen12, loaded with tacoreader (mode cloudsen12-l1c); data from ESA Sentinel-2, hosted by the Image & Signal Processing group. Papers to cite: Aybar et al. 2022 (Scientific Data) and 2024 (Data in Brief). Accessed 2026-11-04.
 - License: CC0 (stated on the dataset page for this version). Attribution not required; I will cite the papers anyway.
-- Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels only for evaluation.
+- Classes: clear, thick cloud, thin cloud, cloud shadow. Label types: high-quality, scribble, no-annotation. I will use high-quality labels for training and evaluation.
 - Patch size: 509x509 px (5.09 km at 10 m) and 2000x2000 px, padded to 512x512 and 2048x2048 with zeros on the bottom and right (indices 509..511.)
 
 - Next: Day 11, define labels and cut patches.
 
 Day 11:
-- Did today: Computed per-patch cloud fraction (`thick_percentage + thin_percentage`) on the 10,000 high-quality 509x509 patches, plotted `results/cloud_hist.png`, defined labeling thresholds, and ran `src/make_patches.py` in Colab to export 900 resized 224x224 RGB patches (`245` clear, `199` cloudy, `456` ambiguous_eval_only).
+- Did today: Computed per-patch cloud fraction (`thick_percentage + thin_percentage`) on the 10,000 high-quality 509x509 patches, plotted `results/cloud_hist.png`, defined labeling thresholds, and ran `src/make_patches.py` in Colab to  export 900 resized 224x224 RGB patches (v1 pilot, superseded) (`245` clear, `199` cloudy, `456` ambiguous_eval_only).
 - Observed: Histogram has a spike near 0% (~25% of patches) and a flat spread up to 100% . Train, val, and test splits have matching distributions (means 36.6%, 37.6%, 37.6%; medians 31%, 32%, 33%). Across all high-quality 509-px patches, 35.4% are >=50% cloudy, 20.8% are >=70% cloudy, and 7.6% are >=90% cloudy.
 
   - Clear (`0`, keep): `cloud_pct <= 10%` (~30% of patches). Cloudy (`1`, discard): `cloud_pct >= 70%` (~20.8% of patches).
@@ -191,7 +191,7 @@ Day 14:
     - Normalized batch per-channel mean: `[-0.142, -0.168, -0.179]` (near `0.0`)
   - Normalized batch per-channel std: `[0.827, 0.804, 0.788]` (near `1.0`).
   - **Loader throughput:** `1140.8 images/sec` (`3.51s` for `4,000` images with `mmap_mode='r'` and `num_workers=0`).
-  - **Visual grid & label quality reaction:** Initial `v1` grids exposed image-label mismatches caused by passing DataFrame index labels (`idx`) to `ds.read()`, which was resolved by re-exporting `cloud_export_v2` using 0-based row positions (`pos`). In the regenerated `v2` stratified grids (brightened x2.5 for display, zero black padding strips on any border), all 12 `y=1` (`>=70%`) tiles match their labels (showing either thick white cloud decks or widespread thin haze/cirrus such as `idx=3223` at 77% in train and `idx=52` at 82% in val), while `y=0` tiles show clear land/water at 0%, bright snow/ice at 0–5% (`idx=638` in train, `idx=107` in val), and broken clouds around 45–66% just below the `T=70%` cutoff.
+  - **Visual grid & label quality reaction:** Initial `v1` grids exposed image-label mismatches caused by passing DataFrame index labels (`idx`) to `ds.read()`, which was resolved by re-exporting `cloud_export_v2` using 0-based row positions (`pos`). In the regenerated `v2` stratified grids (brightened x2.5 for display, zero black padding strips on any border), all 12 `y=1` (`>=70%`) tiles match their labels (showing either thick white cloud decks or widespread thin haze/cirrus such as `row=3223` at 77% in train and `row=52` at 82% in val), while `y=0` tiles show clear land/water at 0%, bright snow/ice at 0–5% (`idx=638` in train, `idx=107` in val), and broken clouds around 45–66% just below the `T=70%` cutoff.
 - Debugging / Windows DLL Note:
   - Running `python src/dataset.py` initially triggered `ImportError: DLL load failed while importing _C: An Application Control policy has blocked this file` when `numpy` was imported right before `torch`, whereas `src/check_loaders.py` ran cleanly because importing `os` and `pandas` first pre-loaded the required C++ runtime DLLs. Reordered the top imports in `src/dataset.py`, after which `python src/dataset.py` passed without error.
 - Next: Day 15 (Phase 3 start), watch 3Blue1Brown Ch. 3 & 4 (gradient descent and backpropagation), implement ResNet-18 in `src/models.py`, and run the 150-step single-batch overfit test.

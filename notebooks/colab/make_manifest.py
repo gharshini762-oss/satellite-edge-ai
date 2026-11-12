@@ -1,62 +1,19 @@
-# Run in google colab.
-
-# Build manifest and check leakage
-hq['cloud_pct'] = hq['thick_percentage'] + hq['thin_percentage']
-
-conditions = [
-    (hq['cloud_pct'] >= 70.0),
-    (hq['cloud_pct'] <= 10.0)
-]
-choices = [1, 0]
-hq['label'] = np.select(conditions, choices, default=-1)
-
-man = hq.rename(columns={'tortilla:data_split': 'split', 'clear_percentage': 'clear_pct',
-                         'cloud_shadow_percentage': 'shadow_pct'})
-man = man[['roi_id', 'split', 'cloud_pct', 'clear_pct', 'shadow_pct', 'label']].copy()
-man['idx'] = man.index
-man.to_csv('manifest_all.csv', index=False)
-
-assert (man.groupby('roi_id')['split'].nunique() == 1).all()
-print("SUCCESS: Zero-leakage assertion passed!")
-print(man.groupby('split')['label'].agg(['count', 'mean']))
-
-N_TRAIN = 4000
-train = man[man['split'] == 'train'].copy()
-train['bin'] = (train['cloud_pct'] // 10).clip(upper=9)
-sub = train.groupby('bin', group_keys=False).apply(
-    lambda g: g.sample(frac=min(1, N_TRAIN / len(train)), random_state=42)
-)
-export = pd.concat([man[man['split'] == 'test'], man[man['split'] == 'validation'], sub.drop(columns='bin')])
-export.to_csv('manifest_export.csv', index=False)
-print(f"Export manifest saved with {len(export)} total rows (Train subset: {len(sub)}). ")
-
+# notebooks/colab/make_manifest.py
 import os
+import cv2
 import numpy as np
+import pandas as pd
 import rasterio as rio
 import tacoreader.v1 as tacoreader
 
-try:
-    from google.colab import drive
-    drive.mount('/content/drive')
-    OUT = '/content/drive/MyDrive/cloud_export'
-except Exception as e:
-    print(f"Could not mount Google Drive ({e}). Falling back to local directory /content/cloud_export")
-    OUT = '/content/cloud_export'
-
-os.makedirs(OUT, exist_ok=True)
-SHARD = 500
-
-def process(idx):
-    s = ds.read(int(idx))
-    with rio.open(s.read(0)) as src:
-        rgb = src.read([4, 3, 2])[:, :509, :509].astype(np.float32) * 0.0001
-    return rgb
-
-import cv2
-
+# Mount Drive
+from google.colab import drive
+drive.mount('/content/drive')
 OUT_V2 = '/content/drive/MyDrive/cloud_export_v2'
 os.makedirs(OUT_V2, exist_ok=True)
 
+# Load dataset
+ds = tacoreader.load("tacofoundation:cloudsen12-l1c")
 pos_of = {lab: p for p, lab in enumerate(ds.index)} 
 
 hq_v2 = ds[(ds['label_type'] == 'high') & (ds['real_proj_shape'] == 509)].copy()
@@ -114,9 +71,6 @@ for split in ['test', 'validation', 'train']:
         X = np.stack([pair[0] for pair in out_pairs])
         mask_pct = np.array([pair[1] for pair in out_pairs], dtype=np.float32)
         np.savez(
-            path,
-            X=X, y=chunk['label'].to_numpy(),
-            idx=chunk['idx'].to_numpy(), pos=chunk['pos'].to_numpy(),
-            col_cloud_pct=chunk['cloud_pct'].to_numpy(dtype=np.float32),
-            mask_cloud_pct=mask_pct
+            path, X=X, y=chunk['label'].to_numpy(), idx=chunk['idx'].to_numpy(), pos=chunk['pos'].to_numpy(),
+            col_cloud_pct=chunk['cloud_pct'].to_numpy(dtype=np.float32), mask_cloud_pct=mask_pct
         )
