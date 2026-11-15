@@ -1,4 +1,6 @@
-# Run in Google Colab to generate 224x224 RGB patches
+# NOTE: v1 pilot script (superseded by notebooks/colab/make_manifest.py in cloud_export_v2).
+# Kept for historical log reference only; v1 read by DataFrame label instead of 0-based position
+# and referenced 'shadow_percentage' instead of 'cloud_shadow_percentage'.
 import os, zipfile
 import tacoreader
 import rasterio as rio
@@ -6,7 +8,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-ds = tacoreader.load("tacofoundation:cloudsen12-11c")
+ds = tacoreader.load("tacofoundation:cloudsen12-l1c")
 hq = ds[(ds["label_type"] == "high") & (ds["real_proj_shape"] == 509)].copy()
 hq["cloud_pct"] = hq["thick_percentage"] + hq["thin_percentage"]
 

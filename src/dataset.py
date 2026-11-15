@@ -1,6 +1,6 @@
 import os
 import json
-import pandas as pd 
+import pandas as pd  # Imported before torch as a workaround for a Windows DLL block (hypothesis: pre-loads C++ runtime)
 import torch
 import numpy as np
 

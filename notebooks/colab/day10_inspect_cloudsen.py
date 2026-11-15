@@ -1,6 +1,6 @@
 import tacoreader
 
-ds = tacoreader.load("hf://datasets/tacofoundation/cloudsen12-11c")
+ds = tacoreader.load("hf://datasets/tacofoundation/cloudsen12-l1c")
 print(f"Total rows in dataset: {len(ds)}")
 print(ds.columns.tolist())
 
@@ -10,7 +10,7 @@ import rasterio as rio
 import numpy as np
 import matplotlib.pyplot as plt
 
-ds = tacoreader.load("tacofoundation:cloudsen12-11c")
+ds = tacoreader.load("tacofoundation:cloudsen12-l1c")
 os.makedirs("results", exist_ok=True)
 
 fig, axes = plt.subplots(5, 4, figsize=(12, 15))

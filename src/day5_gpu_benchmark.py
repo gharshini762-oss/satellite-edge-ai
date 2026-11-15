@@ -1,71 +1,41 @@
-import statistics
 import time
+import numpy as np
 import torch
 
-print("=== DAY 5: PYTORCH TENSORS & GPU BENCHMARK ===")
-print(
-    "GPU Available:",
-    torch.cuda.is_available(),
-    "| Device:",
-    torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU",
-)
+if __name__ == "__main__":
+    N = 4096
+    ITERS = 100
+    WARMUP = 10
 
-# 1. Creating tensors and moving to GPU with .to("cuda")
-size = 4096
-print(f"\n[1] Creating random {size}x{size} float32 tensors...")
-a_cpu = torch.randn(size, size)
-b_cpu = torch.randn(size, size)
+    a_cpu = torch.randn(N, N, dtype=torch.float32)
+    b_cpu = torch.randn(N, N, dtype=torch.float32)
 
-print("Moving tensors to RTX 5060 GPU with .to('cuda')...")
-a_gpu = a_cpu.to("cuda")
-b_gpu = b_cpu.to("cuda")
+    t0 = time.perf_counter()
+    _ = torch.matmul(a_cpu, b_cpu)
+    cpu_ms = (time.perf_counter() - t0) * 1000.0
+    print(f"CPU 4096x4096 matmul (1 run): {cpu_ms:.2f} ms")
 
+    a_gpu = a_cpu.to("cuda")
+    b_gpu = b_cpu.to("cuda")
 
-print("\n[2] Running CPU Matmul...")
-start_cpu = time.time()
-_ = torch.matmul(a_cpu, b_cpu)
-cpu_time = time.time() - start_cpu
-print(f"CPU time: {cpu_time:.4f} seconds")
+    for _ in range(WARMUP):
+        _ = torch.matmul(a_gpu, b_gpu)
+    torch.cuda.synchronize()
 
-print("\n[3] Warming up GPU kernels...")
-for _ in range(10):
-  _ = torch.matmul(a_gpu, b_gpu)
-torch.cuda.synchronize()
+    unsync_times = []
+    for _ in range(ITERS):
+        t0 = time.perf_counter()
+        _ = torch.matmul(a_gpu, b_gpu)
+        unsync_times.append((time.perf_counter() - t0) * 1000.0)
+    torch.cuda.synchronize()
 
-# 2 & 3. Time 100 runs UNSYNCHRONIZED vs SYNCHRONIZED
-print(
-    "\n[4] Running 100 trials: Unsynchronized vs Synchronized (Median of 100"
-    " runs)..."
-)
+    sync_times = []
+    for _ in range(ITERS):
+        torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        _ = torch.matmul(a_gpu, b_gpu)
+        torch.cuda.synchronize()
+        sync_times.append((time.perf_counter() - t0) * 1000.0)
 
-# --- UNSYNCHRONIZED ---
-unsync_times = []
-for _ in range(100):
-  start = time.time()
-  _ = torch.matmul(a_gpu, b_gpu)  
-  end = time.time()
-  unsync_times.append(end - start)
-unsync_median = statistics.median(unsync_times)
-
-# --- SYNCHRONIZED ---
-sync_times = []
-for _ in range(100):
-  start = time.time()
-  _ = torch.matmul(a_gpu, b_gpu)
-  torch.cuda.synchronize()  
-  end = time.time()
-  sync_times.append(end - start)
-sync_median = statistics.median(sync_times)
-
-print(
-    "   -> Fake Unsynchronized Median:"
-    f" {unsync_median * 1000:.4f} ms (Measures CPU handoff only!)"
-)
-print(
-    "   -> Real Synchronized Median  :"
-    f" {sync_median * 1000:.4f} ms (Measures actual GPU compute time)"
-)
-print(
-    f"\nSpeedup (CPU vs Synchronized GPU): {cpu_time / sync_median:.1f}x"
-    " faster!"
-)
+    print(f"GPU Unsynchronized ({ITERS} runs) -> median: {np.median(unsync_times):.4f} ms | p95: {np.percentile(unsync_times, 95):.4f} ms")
+    print(f"GPU Synchronized   ({ITERS} runs) -> median: {np.median(sync_times):.2f} ms | p95: {np.percentile(sync_times, 95):.2f} ms")

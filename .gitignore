@@ -6,3 +6,4 @@ data/
 *.pth
 *.onnx
 *.lnk
+full_project.txt
