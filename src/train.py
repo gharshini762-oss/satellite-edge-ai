@@ -139,6 +139,7 @@ def train_one_seed(seed, max_epochs=15, smoke=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+  
     parser.add_argument("--seeds", type=int, nargs="+", default=[0])
     parser.add_argument("--epochs", type=int, default=15)
     parser.add_argument("--smoke", action="store_true")
