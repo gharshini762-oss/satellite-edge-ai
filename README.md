@@ -10,7 +10,8 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 - Phase 1 (environment and measurement tools): complete.
 - Phase 2 (data): complete.
 - Phase 3 (FP32 baseline): complete.
-- Phase 4 (FP16/INT8 quantization): Not Started.
+- Phase 4 (FP16/INT8 quantization): Ongoing...
+- Phase 5 (benchmarks and bit-flip tests): Not started.
 
 ## Environment
 - Device: Acer Nitro ANV15-52
