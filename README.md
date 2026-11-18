@@ -82,6 +82,9 @@ A laptop GPU stands in for onboard hardware, so results will be relative compari
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+pip install torch torchvision --index-url [https://download.pytorch.org/whl/cu128](https://download.pytorch.org/whl/cu128)
+
+# Note: Before running the local pipeline, export dataset shards from Google Colab using notebooks/colab/make_patches.py
 python src/verify_env.py
 python src/merge_shards.py
 python src/check_loaders.py
@@ -90,7 +93,8 @@ python src/train.py --seeds 0 1 2 --epochs 15
 python src/eval_val.py
 python src/day19_telemetry_compare.py
 python src/day20_test_and_bench.py --power-mode "Balanced" --repeats 3 --cooldown 60
-python src/day21_gate.py```
+python src/day21_gate.py
+```
 
 ## Planned phases
 4. FP16/INT8 quantization and threshold sweep
