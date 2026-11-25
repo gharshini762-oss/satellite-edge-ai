@@ -1,0 +1,4 @@
+precision,seeds,test_acc_mean,test_acc_std,test_f1_mean,test_f1_std,test_auroc_mean,test_auroc_std,test_ece_mean,test_ece_std
+fp32,"0,1,2",0.9241,0.0067,0.8114,0.018,0.9637,0.0047,0.0243,0.0051
+fp16,"0,1,2",0.9241,0.0067,0.8114,0.018,0.9637,0.0047,0.0243,0.005
+int8,"0,1,2",0.9214,0.0016,0.8116,0.0069,0.9636,0.0046,0.024,0.0063

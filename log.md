@@ -348,3 +348,114 @@ Day 21:
     - `ckpt_seed1.pt`: `8DF2EFCF57D16DDE59EC6E205681DE3E6000B6F5D230B8D1C99F436317584AD2`
     - `ckpt_seed2.pt`: `3A86424FC29248F0BE02F35C7AED8A99CB642ED4D3291AB43A437550B1354DC2`
 - Next: Day 22 (Phase 4 start), convert the frozen checkpoints to FP16 (`model.half()`), evaluate validation and test logits once, check prediction agreement and max logit drift against FP32, and benchmark FP16 GPU latency and VRAM across batch sizes 1, 8, and 32.
+
+
+Phase 4:
+
+Day 22:
+- Did today: Hit `WinError 4551` (Windows Application Control) before running any code—`pip.exe` itself was blocked, `pandas` was pulling in blocked `pyarrow` DLLs, and `torch_python.dll` failed to load. Rather than touching Windows security settings, I removed the Colab-only packages (`pyarrow 26.0.1`, `tacoreader 2.4.21`, `duckdb 2.0.0`, and unused `torchaudio 2.11.0+cu128`) using `python -m pip uninstall`. After that, `torch 2.11.0+cu128` loaded cleanly with `CUDA: True`. Switched all Phase 4 scripts to Python's built-in `csv` module instead of `pandas` to keep `pyarrow` out of the pipeline.
+- Seed-0 provenance mismatch caught and resolved (`seed-0 v2`):
+  - First run of `src/day22_fp16.py` showed a red flag: Seeds 1 and 2 had `100%` FP16/FP32 agreement with max logit diffs around `0.015–0.021`, while Seed 0 showed `94.58%` validation agreement (`93.95%` test) and a `3.493` max logit diff.
+  - Checking the live weights confirmed that `results/ckpt_seed0.pt` (SHA-256 `B7FDA259D6593EBFE57F6244053217AE48645407391428E591B9F465F2D1D210`, modified `2026-11-15 14:14`) no longer matched the original Phase 3 logged hash (`FC79C352FF9ACC234B35702E3B7DD19E6ADD388C377E5B5A06288E5B753DA504`):
+    - Live `results/ckpt_seed0.pt`: validation accuracy `0.9421` (`504/535`), validation NLL `0.160261`.
+    - Original Phase 3 `val_logits_fp32_seed0.npy`: validation accuracy `0.9215` (`493/535`); max absolute logit difference `3.4958`.
+  - No backup copy of `FC79C352...A504` exists locally or on Google Drive. Because live validation NLL (`0.160261`) did not match the Day 16 smoke-run epoch-1 loss (`0.174396` at the same `504/535` accuracy), the live file is not the smoke-test checkpoint.
+  - Resolution: Declared live `ckpt_seed0.pt` as `seed-0 v2`, synced `val_logits_fp32_seed0.npy`, `test_logits_fp32_seed0.npy`, `day20_test_metrics.csv`, and `day21_baseline_summary.csv` to match `seed-0 v2` so Phase 3 and Phase 4 evaluate the exact same weights, and preserved the original `baseline-frozen` artifacts untouched in git history (note: the `baseline-frozen` tag points at `b35ec49`, moved from `e883155` during Phase 3 formatting fixes). Explicitly noting that `seed-0 v2` scores higher on validation (`94.21%` vs. `92.15%`) and slightly higher on test accuracy (`91.79%` vs. `91.49%`, lower test F1 `0.7917` vs. `0.8074`, lower test ECE `0.0263` vs. `0.0476`) than the lost original to avoid any appearance of cherry-picking.
+- Prediction parity (all 3 seeds, val and test): `1.0000` (100%) agreement with FP32 across every split and seed, zero accuracy change and negligible AUROC/ECE drift (`|Δacc| = 0`, `|ΔAUROC| ≤ 6e-5`, `|ΔECE| ≤ 4.2e-5`), and max logit diffs between `0.0152` and `0.0215`.
+  - Seed 0 test: `acc=0.9179`, `f1=0.7917`, `auroc=0.9596`, `ece=0.0263`
+  - Seed 1 test: `acc=0.9313`, `f1=0.8269`, `auroc=0.9627`, `ece=0.0281`
+  - Seed 2 test: `acc=0.9231`, `f1=0.8157`, `auroc=0.9688`, `ece=0.0186`
+- Checkpoint size: Dropped `2.00x` from `42.71 MiB` (FP32) to `21.38 MiB` (FP16).
+- GPU latency & VRAM (Seed 0, same-session interleaved paired benchmark via `src/day22_gpu_paired_bench.py`, RTX 5060, `TF32=False`, plugged in, NitroSense `Balanced`, 50 warm-up, 500 CUDA-event iters, 3 repeats, 60 s cooldown before every run including repeat 1, isolated single-model loading, start temps `48–54°C`, sample std `ddof=1`, `max` peak VRAM across repeats; replaces earlier provisional numbers that compared FP16 against the older Day 20 FP32 run):
+  - Batch 1: `4.1455 ± 0.1013 ms` (p95 `4.8998 ms`) → `2.6147 ± 0.0581 ms` (p95 `4.1809 ms`) — **1.59x faster**; peak VRAM `98.87 → 36.86 MiB` (`62.7%` drop).
+  - Batch 8: `8.6842 ± 0.0571 ms` (p95 `9.0605 ms`) → `3.1590 ± 0.0267 ms` (p95 `3.5895 ms`) — **2.75x faster**; peak VRAM `106.91 → 61.66 MiB` (`42.3%` drop).
+  - Batch 32: `20.4855 ± 0.0255 ms` (p95 `21.2737 ms`) → `10.1905 ± 0.0900 ms` (p95 `11.3769 ms`) — **2.01x faster**; peak VRAM `266.19 → 151.55 MiB` (`43.1%` drop).
+
+Even at batch 1, FP16 was noticeably faster rather than completely launch-bound, and batch 8 hit the biggest relative speedup.
+
+Day 23:
+- Did today: Installed `onnx` and `onnxruntime` via `python -m pip`; Windows Application Control did not block either package, so the ONNX Runtime CPU path worked without needing a fallback.
+- Environment recorded: CPU `13th Gen Intel(R) Core(TM) i7-13620H`; `torch 2.11.0+cu128`, `onnx 1.23.2`, `onnxruntime 1.32.0`, `psutil 7.2.2`, `cv2 5.0.0`, `numpy 2.5.4`.
+- Export: Exported `results/ckpt_seed0.pt` to `results/resnet18_fp32.onnx` (`42.63 MiB`, SHA-256 `7A3CCA07CC09CD538354ABD24F5F0E69BA77526047D1BF052C0E18B29E45C815`) at opset 17 using `dynamo=False`. PyTorch 2.11 printed a deprecation warning for the legacy TorchScript exporter, which is expected here.
+- Parity check (256 validation images vs. `seed-0 v2` FP32 logits): `max_abs_diff = 1.452e-04`, `argmax_agree = 1.0000`. (Before syncing the Seed-0 reference file, this printed `3.4958`, which helped confirm the Day 22 mismatch.)
+- CPU FP32 latency (`CPUExecutionProvider`, `i7-13620H`, batch 1, 50 warm-up, 300 iters, 3 repeats, plugged in, sample std `ddof=1`):
+  - 1 thread: `26.5741 ± 0.0066 ms` (p95 `28.1545 ms`)
+  - 2 threads: `13.8985 ± 0.0229 ms` (p95 `15.2255 ms`)
+  - 4 threads: `8.3058 ± 0.1141 ms` (p95 `10.6894 ms`)
+
+CPU scaling across 1→2→4 threads is clean and repeatable. These numbers are strictly the CPU baseline for Day 24 INT8, not a direct comparison against RTX 5060 GPU times.
+
+Day 24:
+- Did today: Built a 256-image calibration subset from the `train` split (`train=False`, `seed=0`, never validation or test) and ran ONNX Runtime static QDQ quantization (`QUInt8` activations, `QInt8` per-channel weights) across MinMax, Percentile, and Entropy calibration. ONNX Runtime printed its standard warning recommending graph pre-processing before quantization, which I left as-is for the baseline comparison.
+- Bug caught: My first run showed `acc_drop = +0.0187` because it was still comparing INT8 (`0.9402`) against the old `0.9215` FP32 file. Updated the reference to `seed-0 v2` (`0.9421`) and reran.
+- MinMax vs. Entropy ONNX equivalence: Hashing the exported files showed that `resnet18_int8_minmax.onnx` and `resnet18_int8_entropy.onnx` are byte-for-byte identical (both SHA-256 `4E6DB7B61A44525D59FDA541219B3D1E0F87A037AF7360F955F5BA460A86A3C9`), while `resnet18_int8_percentile.onnx` is distinct (`908F83FFDD1C735C669EA26ED4B18DEFF64FE90D6198CA08DB011AA28D640DBD`). ONNX Runtime therefore produced two distinct quantized graphs (`minmax`/`entropy` vs. `percentile`), not three, and CPU latency differences between `minmax` and `entropy` are run-to-run noise.
+- Validation comparison (Seed 0, file size `42.63 → 10.77 MiB`, `3.96x` smaller):
+  - `minmax` (= `entropy`): `acc=0.9402` (`-0.0019`, i.e. 1 of 535 validation tiles), `f1=0.8632`, `auroc=0.9754`, `ece=0.0210`, `agree=0.9963`
+  - `percentile`: `acc=0.9346` (`-0.0075`), `f1=0.8511`, `auroc=0.9763`, `ece=0.0221`, `agree=0.9925`
+- Selection & layer exclusions: `minmax` stayed well within the 1-point validation cutoff, so I kept full-model quantization with no layer exclusions and no QAT, selecting `minmax` on validation.
+- CPU INT8 latency (`minmax`, `i7-13620H`, batch 1, 3 repeats, plugged in, `ddof=1`, vs. Day 23 ORT FP32):
+  - 1 thread: `8.7145 ± 0.1355 ms` (p95 `10.1963 ms`) — **3.05x faster**
+  - 2 threads: `4.7895 ± 0.0545 ms` (p95 `5.6378 ms`) — **2.90x faster**
+  - 4 threads: `3.4573 ± 0.3160 ms` (p95 `4.8635 ms`) — **2.40x faster**
+  - *(Entropy and Percentile latencies sat within run-to-run variance: `8.7042–8.8264 ms` at 1T, `4.7595–4.8393 ms` at 2T, `3.1541–3.2980 ms` at 4T; because `entropy` and `minmax` are identical graphs, their latency gap is pure noise.)*
+- Test once (`minmax`, Seed 0): `acc=0.9210` (`+0.31` percentage points over Seed-0 FP32 `0.9179`), `f1=0.8041`, `auroc=0.9618`, `ece=0.0183`, `agree=0.9928`. Because validation showed `-0.19%` (1 tile of 535) while Seed-0 test showed `+0.31%`, Seed-0 FP32 and INT8 accuracy are not distinguishable.
+- **3-seed INT8 check (`src/day24_int8_multiseed.py`):** Applied the frozen `minmax` recipe (same 256 train calibration images) to Seeds 1 and 2 (`10.77 MiB` each; ONNX FP32 parity `1.10e-05` Seed 1 and `6.68e-06` Seed 2; SHA-256 `B07036E35FA329FD7C3C6D6E0FD1566E4066B061DF3421120236088137C16BD9` for Seed 1 and `896A04A345973F9C8D1D6BC1E19B9B87A58CC37F5D1673B85B3CE416CCDA9A6C` for Seed 2).
+  - Seed 1 test: `acc=0.9231 (-0.0082)`, `auroc=0.9601`, `ece=0.0229`, `agree=0.9867`.
+  - Seed 2 test: `acc=0.9200 (-0.0031)`, `auroc=0.9687`, `ece=0.0307`, `agree=0.9867`.
+  - Across all 3 seeds (`ddof=1`), INT8 test metrics are `acc 0.9214 ± 0.0016`, `f1 0.8116 ± 0.0069`, `auroc 0.9636 ± 0.0046`, `ece 0.0240 ± 0.0063`—a `-0.27%` mean accuracy difference vs. FP32 (`0.9241 ± 0.0067`), not statistically distinguishable across three seeds.
+
+Day 25:
+- Did today: Wrote `src/policy.py` and swept $\tau \in \{0.5, 0.8, 0.9, 0.95, 0.99, 0.999\}$ on validation, then evaluated the chosen thresholds on test with 1,000-replicate `roi_id` cluster bootstrap 95% confidence intervals.
+- Bug caught: After fixing Days 22–24, I missed updating `src/policy.py` (and Day 26), so FP32 still loaded the old Seed-0 logits and disagreed with FP16 even at $\tau=0.5$ (`bw=0.2379` vs `0.1897`). Synced to `seed-0 v2` and reran; FP32 and FP16 then matched to 6 decimal places across all 6 thresholds.
+- Validation-selected operating points: All three precisions chose $\tau = 0.8$ for the $\le 1\%$ false-deletion cap (allowing `3/418` = `0.72%` false deletions on validation) and $\tau = 0.5$ for the $\le 5\%$ cap.
+- **Test results (975 tiles: 776 keep-worthy, 199 cloudy; 95% cluster CIs):**
+  - **$\tau = 0.8$ (chosen for $\le 1\%$ val cap):**
+    - FP32 & FP16: bandwidth saved `13.13%` (`[11.38%, 14.97%]`), false deletion `1.80%` (`14/776`, `[0.91%, 2.82%]`), cloud leakage `42.71%` (`85/199` cloudy tiles still downlinked), clear ground lost `1.32%`.
+    - INT8: bandwidth saved `13.64%` (`[11.79%, 15.59%]`), false deletion `2.19%` (`[1.18%, 3.31%]`), cloud leakage `41.71%`, clear ground lost `1.46%`.
+  - **$\tau = 0.5$ (chosen for $\le 5\%$ val cap):**
+    - FP32 & FP16: bandwidth saved `18.97%` (`[17.13%, 20.82%]`), false deletion `4.25%` (`[2.93%, 5.70%]`), cloud leakage `23.62%`, clear ground lost `3.14%`.
+    - INT8: bandwidth saved `19.90%` (`[18.05%, 21.85%]`), false deletion `4.64%` (`[3.22%, 6.13%]`), cloud leakage `20.60%`, clear ground lost `3.38%`.
+- Comparison & caveats: FP32 and FP16 coincide (`FP32 ≡ FP16`), while INT8 differs from FP32 by 3 false-deleted tiles at both $\tau = 0.8$ and $\tau = 0.5$, well inside overlapping 95% bootstrap CIs (no causal difference is claimed). Critically, $\tau=0.8$ allowed `3/418` (`0.72%`) false deletions on validation but overshot to `14/776` (`1.80%`) on test (`2.19%` for INT8); because validation also served as the early-stopping split during training, validation-selected $\tau$ is optimistic, and I left it untouched rather than retuning on test. Bandwidth numbers apply to CloudSEN12+'s stratified cloud mix (`20.4%` cloudy in test), not real-world orbital frequency. Regenerated `results/day25_policy_tradeoff.png` (`src/day28_replot_figures.py`) so dashed FP16 sits visibly over solid FP32 (`FP32 ≡ FP16`), with $\tau$ labels, circled validation-selected operating points, and 95% CI bars.
+
+Day 26:
+- Did today: Computed 10-bin ECE and plotted reliability diagrams (`results/day26_calibration.png`, regenerated via `src/day28_replot_figures.py` with dashed FP16 over solid FP32 and per-bin counts `n=...`) on validation (535 tiles) and test (975 tiles). Fitted single-parameter temperature scaling $T$ on validation NLL only and applied it to test.
+- ECE before vs. after temperature scaling:
+  - FP32: $T_{\text{val}} = 0.95$ | Val ECE `0.0195 → 0.0237` | Test ECE `0.0263 → 0.0269`
+  - FP16: $T_{\text{val}} = 0.95$ | Val ECE `0.0194 → 0.0237` | Test ECE `0.0263 → 0.0269`
+  - INT8: $T_{\text{val}} = 0.90$ | Val ECE `0.0210 → 0.0256` | Test ECE `0.0183 → 0.0206`
+- Scaling effect: $T < 1.0$ reflects a global NLL fit across validation (whereas per-bin reliability is mixed across bins rather than uniformly under-confident). Applying $T < 1$ slightly increased 10-bin ECE on both splits because NLL and 10-bin ECE optimize different objectives. At $\tau = 0.95$, post-hoc scaling left FP32/FP16 false deletion unchanged (`0.13%`, `1/776`) and shifted INT8 from `0.13%` (`1/776`) to `0.26%` (`2/776`)—a single-tile difference—while ranking/AUROC stayed identical.
+- **High-confidence check at $\tau = 0.95$ on test (consistent with $\ge 95\%$ cloudy purity; note that $\tau = 0.95$ is not a pre-registered operating point):**
+  - FP32 & FP16 discarded `72` tiles; `98.61%` (`71/72`, 95% Wilson CI `[92.5%, 99.8%]`) truly had `cloud_pct >= 70`, with `1.67%` mean clear ground inside discarded tiles.
+  - INT8 discarded `75` tiles; `98.67%` (`74/75`, 95% Wilson CI `[92.8%, 99.8%]`) truly had `cloud_pct >= 70`, with `1.87%` mean clear ground inside discarded tiles.
+- FP32 vs. INT8: Static INT8 quantization did not degrade calibration on this test set (raw INT8 test ECE `0.0183` vs. FP32 `0.0263`, within small-sample bin variance). At $\tau = 0.95$, INT8 and FP32 differ by 3 discarded tiles (`75` vs. `72`) and by 1 vs. 2 false-deleted tiles after scaling, well within overlapping CIs; no causal claim is made about sharper confidence driving extra false deletions.
+
+Day 27:
+- Did today: Ran `src/day27_compression.py` across all 975 test tiles (`224x224` 3-band `int16`, `301,056` bytes/tile raw).
+- Encoder check: OpenCV's JPEG 2000 encoder (`.jp2`, `IMWRITE_JPEG2000_COMPRESSION_X1000 = 1000`) passed a bit-exact 16-bit decode round-trip check (`np.array_equal`), additionally verified bit-exact on `50/50` seeded random test tiles, so no PNG stand-in was needed. Real spacecraft downlinks use CCSDS 122.0, which is cited rather than implemented.
+- Compression ratio (all 975 tiles): Raw `293.53 MB` (`100.0%`) → Compress-only `145.83 MB` (`49.68%`), a **2.01x** lossless ratio.
+- Four scenarios at $\tau = 0.8$ (val $\le 1\%$ cap):
+  - FP32 & FP16 (847 tiles kept): Raw `293.53 MB` (`100.0%`) | Compress-only `145.83 MB` (`49.68%`) | Filter-only `254.99 MB` (`86.87%`) | Filter + Compress `126.76 MB` (`43.18%`).
+  - INT8 (842 tiles kept): Filter-only `253.49 MB` (`86.36%`) | Filter + Compress `126.15 MB` (`42.98%`).
+  - *(Note: lossless `.jp2` compression alone already reaches `49.68%` of raw volume, so $\tau = 0.8$ filtering adds `6.5` percentage points of raw reduction while still downlinking `85` of `199` cloudy test tiles.)*
+- Four scenarios at $\tau = 0.5$ (val $\le 5\%$ cap):
+  - FP32 & FP16 (790 tiles kept): Filter-only `237.83 MB` (`81.03%`) | Filter + Compress `118.11 MB` (`40.24%`).
+  - INT8 (781 tiles kept): Filter-only `235.12 MB` (`80.10%`) | Filter + Compress `116.93 MB` (`39.84%`).
+- Limitation: These tiles are `224x224` 3-band RGB thumbnails, not full-resolution 13-band Sentinel-2 scenes. Absolute megabytes mean nothing for an actual satellite downlink; only the relative percentages matter. Saved `results/day27_compression_bars.png`.
+
+Day 28:
+- Did today: Ran `src/day28_gate.py` and `src/day28_replot_figures.py` to assemble Tables II–IV and finalize all Phase 4 deliverables.
+- Bugs & audit fixes resolved:
+  - Fixed empty/float-formatted `batch` row parsing in the initial Table III script, switched GPU rows to the same-session paired benchmark (`results/day22_gpu_paired_bench.csv`) using `max(peak_vram_mb)` across repeats, and updated all standard deviations in Tables II and III from `ddof=0` to sample std (`ddof=1`) to match Phase 3.
+  - Verified all 6 gate artifacts (`day28_table2_accuracy.csv`, `day28_table3_systems.csv`, `day28_table4_policy.csv`, and the three figures) and logged all gitignored ONNX SHA-256 hashes (Days 23–24).
+- Table II summary (Test set, 3 seeds, `ddof=1`):
+  - FP32 (seeds 0, 1, 2): `acc 0.9241 ± 0.0067`, `f1 0.8114 ± 0.0180`, `auroc 0.9637 ± 0.0047`, `ece 0.0243 ± 0.0051`.
+  - FP16 (seeds 0, 1, 2): `acc 0.9241 ± 0.0067`, `f1 0.8114 ± 0.0180`, `auroc 0.9637 ± 0.0047`, `ece 0.0243 ± 0.0050` (negligible drift vs. FP32).
+  - INT8 (seeds 0, 1, 2): `acc 0.9214 ± 0.0016`, `f1 0.8116 ± 0.0069`, `auroc 0.9636 ± 0.0046`, `ece 0.0240 ± 0.0063`.
+- Pre-registration & cut-list audit:
+  - Operating $\tau$ values and temperature $T$ were fitted strictly using validation data only (FP16 and INT8 test logits had already been saved earlier in the pipeline, but were never read during threshold or temperature selection). Validation also served as the early-stopping split, making validation-selected $\tau$ optimistic.
+  - MobileNetV2 remained skipped (logged in Phase 3); TensorRT / GPU INT8 was skipped per the Section 5 cut list and documented in `README.md` Limitations alongside CPU-vs-GPU latency non-comparability, Seed-0-only policy/calibration/compression/latency runs, thumbnail sizing, and stratified cloud prevalence.
+  - Phase 3 and Phase 4 FP32 Seed-0 summaries are anchored to `seed-0 v2` (`ckpt_seed0.pt`, SHA-256 `B7FDA259...D210`, logged on Day 22).
+  - RQ1: Moving ResNet-18 from FP32 to FP16 on the RTX 5060 halves model size (`42.71 → 21.38 MiB`), reduces peak VRAM by `42.3%–62.7%`, and runs `1.59x–2.75x` faster in same-session paired benchmarks with no measurable change in accuracy, AUROC, or calibration across three seeds (`|Δacc| = 0`, `|ΔAUROC| ≤ 6e-5`, `|ΔECE| ≤ 4.2e-5`). Moving to static INT8 on the CPU (`i7-13620H`, `onnxruntime 1.32.0`) shrinks the ONNX model `3.96x` (`42.63 → 10.77 MiB`) and speeds up CPU inference by `2.40x–3.05x` with a `-0.27%` mean test accuracy delta across three seeds (`0.9241 ± 0.0067 → 0.9214 ± 0.0016`; Seed-0 val `-0.19%`, Seed-0 test `+0.31%`), which is not statistically distinguishable, and virtually unchanged F1, AUROC, and ECE.
+  - RQ2: Lossless `.jp2` compression alone reduces test downlink volume to `49.68%` of raw (`145.83 / 293.53 MB`); adding $\tau=0.8$ filtering brings volume to `43.18%` (`42.98%` for INT8)—an extra `6.5` percentage points of raw reduction while still downlinking `~85/199` cloudy tiles. High-confidence discards at $\tau=0.95$ (not a pre-registered operating point) are consistent with $\ge 95\%$ cloudy purity (`71/72 = 98.61%`, 95% Wilson CI `[92.5%, 99.8%]`, under `2%` average clear ground). However, choosing a $\le 1\%$ false-deletion cap on a 535-tile validation split that also controlled early stopping does not guarantee $\le 1\%$ out-of-sample—test false deletion rose from `3/418` (`0.72%`) on validation to `14/776` (`1.80%`) for FP32/FP16 and `2.19%` for INT8, showing deployments need a safety margin above validation estimates.
+- What surprised me: Two things—first, that NLL-fitted temperature scaling ($T < 1$) slightly *worsened* 10-bin ECE because NLL and ECE optimize different objectives; second, how easily a strict 1% validation safety cap overshoots to ~2% on test even when AUROC is `0.96+`.
+- Next: Update `README.md`, commit and push with `git tag phase4-frozen`, then start Phase 5 prep (verify exact titles and read abstracts for *Terminal Brain Damage* and *Bit-Flip Attack*, review IEEE-754 / INT8 binary notes, and sketch `src/fault_injection.py`).

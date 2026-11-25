@@ -1,0 +1,4 @@
+method,split,seed,acc,acc_drop,f1,auroc,ece,agree_with_fp32,size_mb
+minmax,validation,0,0.940187,-0.001869,0.863248,0.975422,0.020997,0.996262,10.77
+percentile,validation,0,0.934579,-0.007477,0.851064,0.976281,0.022065,0.992523,10.77
+entropy,validation,0,0.940187,-0.001869,0.863248,0.975422,0.020997,0.996262,10.77

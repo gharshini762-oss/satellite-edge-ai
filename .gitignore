@@ -7,3 +7,7 @@ data/
 *.onnx
 *.lnk
 full_project.txt
+phase4_review_bundle.txt
+phase4_verify_compact.txt
+*_verify*.txt
+*_review_bundle.txt
