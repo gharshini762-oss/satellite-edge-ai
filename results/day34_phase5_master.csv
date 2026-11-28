@@ -1,0 +1,51 @@
+section,precision,setting,metric_primary,metric_secondary,notes
+5A_energy,fp32,gpu_batch=1,241.3 ± 9.1 p/s,total 222.29 ± 5.64 mJ/p | net 208.72 ± 6.16 mJ/p,"mean power 53.67 W (idle 3.27 W), T=68-81C"
+5A_energy,fp32,gpu_batch=8,940.5 ± 2.6 p/s,total 61.02 ± 0.95 mJ/p | net 57.54 ± 0.96 mJ/p,"mean power 57.39 W (idle 3.27 W), T=76-84C"
+5A_energy,fp32,gpu_batch=32,1540.2 ± 0.7 p/s,total 38.53 ± 0.14 mJ/p | net 36.41 ± 0.14 mJ/p,"mean power 59.35 W (idle 3.27 W), T=74-82C"
+5A_energy,fp16,gpu_batch=1,380.8 ± 38.2 p/s,total 105.22 ± 7.65 mJ/p | net 96.57 ± 6.73 mJ/p,"mean power 39.88 W (idle 3.27 W), T=68-77C"
+5A_energy,fp16,gpu_batch=8,2402.1 ± 7.4 p/s,total 21.44 ± 0.24 mJ/p | net 20.08 ± 0.25 mJ/p,"mean power 51.50 W (idle 3.27 W), T=75-83C"
+5A_energy,fp16,gpu_batch=32,3127.7 ± 1.1 p/s,total 18.96 ± 0.09 mJ/p | net 17.91 ± 0.09 mJ/p,"mean power 59.29 W (idle 3.27 W), T=77-84C"
+5B_thermal,fp32,gpu_batch=32_10min,lat 21.3237 -> 24.4309 ms (+14.57%),pps 1481.6 -> 1301.4,"max 87C, SM 1837->1350 MHz, mask=32 at t=77.73s"
+5B_thermal,fp16,gpu_batch=32_10min,lat 10.4392 -> 12.6221 ms (+20.91%),pps 3031.9 -> 2516.4,"max 87C, SM 2182->1590 MHz, mask=32 at t=37.55s"
+5D_equal_ber,fp32,lvl=1e-08 (flips=4.2),"acc 0.8935 ± 0.0197 (med 0.9179, min 0.7026)",fd@0.8 0.0145 (max 0.018),"col<85%=5/30, nf=1/30, catFD>10%=0/30"
+5D_equal_ber,sim_int8,lvl=1e-08 (flips=1.07),"acc 0.9169 ± 0.0 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_ber,fp32,lvl=1e-07 (flips=32.77),"acc 0.8109 ± 0.0689 (med 0.8754, min 0.1949)",fd@0.8 0.098 (max 0.9832),"col<85%=13/30, nf=3/30, catFD>10%=4/30"
+5D_equal_ber,sim_int8,lvl=1e-07 (flips=8.6),"acc 0.917 ± 0.0001 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_ber,fp32,lvl=1e-06 (flips=357.43),"acc 0.4755 ± 0.1237 (med 0.6067, min 0.0)",fd@0.8 0.0773 (max 0.9871),"col<85%=30/30, nf=27/30, catFD>10%=3/30"
+5D_equal_ber,sim_int8,lvl=1e-06 (flips=88.1),"acc 0.917 ± 0.0001 (med 0.9169, min 0.9169)",fd@0.8 0.0203 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_ber,fp32,lvl=1e-05 (flips=3586.3),"acc 0.0346 ± 0.0556 (med 0.0, min 0.0)",fd@0.8 0.0004 (max 0.0116),"col<85%=30/30, nf=30/30, catFD>10%=0/30"
+5D_equal_ber,sim_int8,lvl=1e-05 (flips=880.07),"acc 0.9186 ± 0.0006 (med 0.9185, min 0.9169)",fd@0.8 0.0195 (max 0.0219),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_ber,fp32,lvl=0.0001 (flips=35697.43),"acc 0.0 ± 0.0 (med 0.0, min 0.0)",fd@0.8 0.0 (max 0.0),"col<85%=30/30, nf=30/30, catFD>10%=0/30"
+5D_equal_ber,sim_int8,lvl=0.0001 (flips=8928.47),"acc 0.9184 ± 0.0013 (med 0.9185, min 0.9067)",fd@0.8 0.0158 (max 0.0232),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=1 (flips=1.0),"acc 0.9179 ± 0.0 (med 0.9179, min 0.9179)",fd@0.8 0.018 (max 0.018),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,sim_int8,lvl=1 (flips=1.0),"acc 0.9169 ± 0.0 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=10 (flips=10.0),"acc 0.8796 ± 0.0286 (med 0.9179, min 0.56)",fd@0.8 0.0271 (max 0.3995),"col<85%=7/30, nf=2/30, catFD>10%=1/30"
+5D_equal_flips,sim_int8,lvl=10 (flips=10.0),"acc 0.917 ± 0.0001 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=30 (flips=30.0),"acc 0.8581 ± 0.042 (med 0.9179, min 0.3426)",fd@0.8 0.0396 (max 0.7796),"col<85%=11/30, nf=2/30, catFD>10%=1/30"
+5D_equal_flips,sim_int8,lvl=30 (flips=30.0),"acc 0.917 ± 0.0001 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=100 (flips=100.0),"acc 0.7546 ± 0.0639 (med 0.7959, min 0.0)",fd@0.8 0.0378 (max 0.5735),"col<85%=26/30, nf=8/30, catFD>10%=3/30"
+5D_equal_flips,sim_int8,lvl=100 (flips=100.0),"acc 0.9174 ± 0.0004 (med 0.9169, min 0.9169)",fd@0.8 0.0202 (max 0.0219),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=1000 (flips=1000.0),"acc 0.3021 ± 0.1229 (med 0.1487, min 0.0)",fd@0.8 0.0911 (max 0.9716),"col<85%=30/30, nf=29/30, catFD>10%=5/30"
+5D_equal_flips,sim_int8,lvl=1000 (flips=1000.0),"acc 0.9186 ± 0.0005 (med 0.919, min 0.9169)",fd@0.8 0.0186 (max 0.0219),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_equal_flips,fp32,lvl=10000 (flips=10000.0),"acc 0.0176 ± 0.0355 (med 0.0, min 0.0)",fd@0.8 0.0 (max 0.0),"col<85%=30/30, nf=30/30, catFD>10%=0/30"
+5D_equal_flips,sim_int8,lvl=10000 (flips=10000.0),"acc 0.9143 ± 0.0042 (med 0.9185, min 0.8687)",fd@0.8 0.0154 (max 0.0232),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_per_bit_k10,fp32,b29 (K=10),"acc 0.9179 ± 0.0 (med 0.9179, min 0.9179)",fd@0.8 0.018 (max 0.018),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_per_bit_k10,fp32,b30 (K=10),"acc 0.5276 ± 0.116 (med 0.7103, min 0.0)",fd@0.8 0.0357 (max 0.9162),"col<85%=30/30, nf=26/30, catFD>10%=2/30"
+5D_per_bit_k10,fp32,b31 (K=10),"acc 0.9179 ± 0.0001 (med 0.9179, min 0.9169)",fd@0.8 0.018 (max 0.018),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_per_bit_k10,sim_int8,b7 (K=10),"acc 0.917 ± 0.0001 (med 0.9169, min 0.9169)",fd@0.8 0.0205 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_single_flip_k1,fp32,fp32_b30_k1 (K=1),"acc 0.7142 ± 0.0768 (med 0.7959, min 0.2544)",fd@0.8 0.1665 (max 0.9227),"col<85%=23/30, nf=4/30, catFD>10%=8/30"
+5D_single_flip_k1,fp32,fp32_exp_k1 (K=1),"acc 0.9044 ± 0.0112 (med 0.9179, min 0.8031)",fd@0.8 0.0155 (max 0.018),"col<85%=3/30, nf=1/30, catFD>10%=0/30"
+5D_single_flip_k1,sim_int8,int8_b7_k1 (K=1),"acc 0.9169 ± 0.0 (med 0.9169, min 0.9169)",fd@0.8 0.0205 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_field_groups_k100,fp32,fp32_mant_k100 (K=100),"acc 0.9179 ± 0.0 (med 0.9179, min 0.9179)",fd@0.8 0.018 (max 0.018),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_field_groups_k100,fp32,fp32_sign_k100 (K=100),"acc 0.9177 ± 0.0002 (med 0.9179, min 0.9169)",fd@0.8 0.0177 (max 0.0193),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_field_groups_k100,fp32,fp32_exp_k100 (K=100),"acc 0.5079 ± 0.1232 (med 0.6723, min 0.0)",fd@0.8 0.0392 (max 0.6817),"col<85%=30/30, nf=25/30, catFD>10%=3/30"
+5D_field_groups_k100,sim_int8,int8_low_k100 (K=100),"acc 0.9169 ± 0.0 (med 0.9169, min 0.9169)",fd@0.8 0.0206 (max 0.0206),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5D_field_groups_k100,sim_int8,int8_msb_k100 (K=100),"acc 0.918 ± 0.0005 (med 0.9179, min 0.9169)",fd@0.8 0.0198 (max 0.0219),"col<85%=0/30, nf=0/30, catFD>10%=0/30"
+5F_mcnemar,fp32_s0_vs_int8_s0,"acc (tau=0.5, n=975)",exact p=0.507812,"b=3, c=6 (disc=9)",chi2_cc=0.4444
+5F_mcnemar,fp32_s1_vs_int8_s1,"acc (tau=0.5, n=975)",exact p=0.076813,"b=12, c=4 (disc=16)",chi2_cc=3.0625
+5F_mcnemar,fp32_s2_vs_int8_s2,"acc (tau=0.5, n=975)",exact p=0.663624,"b=12, c=9 (disc=21)",chi2_cc=0.1905
+5F_mcnemar,fp32_s0_vs_sim_int8_s0,"acc (tau=0.5, n=975)",exact p=1.0,"b=2, c=1 (disc=3)",chi2_cc=0.0
+5F_mcnemar,fp32_s0_vs_fp16_s0,"acc (tau=0.5, n=975)",exact p=1.0,"b=0, c=0 (disc=0)",chi2_cc=0.0
+5F_mcnemar,fp32_s0_vs_int8_s0,"fd_keep (tau=0.8, n=776)",exact p=0.25,"b=0, c=3 (disc=3)",chi2_cc=1.3333
+5F_mcnemar,fp32_s0_vs_sim_int8_s0,"fd_keep (tau=0.8, n=776)",exact p=0.5,"b=0, c=2 (disc=2)",chi2_cc=0.5
+5F_mcnemar,fp32_s0_vs_int8_s0,"disc_all (tau=0.8, n=975)",exact p=0.226562,"b=3, c=8 (disc=11)",chi2_cc=1.4545
